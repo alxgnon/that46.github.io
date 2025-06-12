@@ -47,6 +47,11 @@ export class NoteManager {
      * @param {Object} note - Note to delete
      */
     deleteNote(note) {
+        // Protect notes from muted tracks
+        if (this.pianoRoll && this.pianoRoll.trackVisibility.get(note.instrument) === false) {
+            return;
+        }
+        
         const index = this.notes.indexOf(note);
         if (index !== -1) {
             this.notes.splice(index, 1);
@@ -61,7 +66,11 @@ export class NoteManager {
      * @param {number} scaleFactor - Optional scale factor for high-res mode
      */
     deleteNotesInRegion(bounds, scaleFactor = 1) {
-        const notesToDelete = this.getNotesInRegion(bounds, scaleFactor);
+        const notesToDelete = this.getNotesInRegion(bounds, scaleFactor)
+            .filter(note => {
+                // Skip notes from muted tracks
+                return !(this.pianoRoll && this.pianoRoll.trackVisibility.get(note.instrument) === false);
+            });
         notesToDelete.forEach(note => this.deleteNote(note));
     }
 

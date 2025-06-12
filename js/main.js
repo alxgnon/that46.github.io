@@ -3,7 +3,7 @@ import { ModalManager } from './ModalManager.js';
 import { MenuManager } from './MenuManager.js';
 import { PanBar } from './PanBar.js';
 import { VelocityBar } from './VelocityBar.js';
-import { DEFAULT_VOLUME } from './constants.js';
+import { DEFAULT_VOLUME, NOTES_PER_OCTAVE } from './constants.js';
 
 // Initialize managers
 const modalManager = new ModalManager();
@@ -17,9 +17,9 @@ let currentFilename = null;
 // Update page title based on current file
 function updatePageTitle() {
     if (currentFilename) {
-        document.title = `${currentFilename} - that38.org`;
+        document.title = `${currentFilename} - that46.org`;
     } else {
-        document.title = 'that38.org - 38-EDO Composition Tool';
+        document.title = 'that46.org - 46-EDO Composition Tool';
     }
 }
 
@@ -337,6 +337,20 @@ function setupSongMenuItems() {
         });
     });
     
+    // Direct JSON song links (for tuned songs)
+    const jsonLinks = document.querySelectorAll('[data-json]');
+    jsonLinks.forEach(link => {
+        link.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const jsonPath = e.target.getAttribute('data-json');
+            if (jsonPath) {
+                await loadJsonFromPath(jsonPath);
+                menuManager.closeAll();
+            }
+        });
+    });
+    
     // MIDI directory links
     const midiDirLinks = document.querySelectorAll('[data-midi-dir]');
     midiDirLinks.forEach(link => {
@@ -392,8 +406,8 @@ async function handleImportOrg() {
             try {
                 const buffer = await file.arrayBuffer();
                 await pianoRoll.loadOrgFile(buffer);
-                // Convert to .o38.json extension for saving
-                currentFilename = file.name.replace(/\.org$/i, '.o38.json');
+                // Convert to .o46.json extension for saving
+                currentFilename = file.name.replace(/\.org$/i, '.o46.json');
                 updatePageTitle();
                 modalManager.notify(`Loaded: ${file.name}`, 'info');
             } catch (error) {
@@ -416,8 +430,8 @@ async function handleImportMidi() {
             try {
                 const buffer = await file.arrayBuffer();
                 await pianoRoll.loadMidiFile(buffer);
-                // Convert to .o38.json extension for saving
-                currentFilename = file.name.replace(/\.(mid|midi)$/i, '.o38.json');
+                // Convert to .o46.json extension for saving
+                currentFilename = file.name.replace(/\.(mid|midi)$/i, '.o46.json');
                 updatePageTitle();
                 modalManager.notify(`Loaded: ${file.name}`, 'info');
             } catch (error) {
@@ -486,6 +500,47 @@ function handleDelete() {
     pianoRoll.dirty = true;
 }
 
+/**
+ * Select all notes of the same pitch class
+ */
+function selectAllPitchClass(event) {
+    // Get the first selected note to determine the pitch class
+    const selectedNotes = Array.from(pianoRoll.noteManager.selectedNotes);
+    if (selectedNotes.length === 0) {
+        modalManager.notify('Select a note first to select all notes of that pitch class', 'info');
+        return;
+    }
+    
+    // Get the pitch class of the first selected note
+    const firstNote = selectedNotes[0];
+    const pitchClass = firstNote.key % NOTES_PER_OCTAVE;
+    
+    // Clear current selection if not holding shift
+    if (!event.shiftKey) {
+        pianoRoll.noteManager.selectedNotes.clear();
+    }
+    
+    // Select all notes with the same pitch class
+    let count = 0;
+    for (const note of pianoRoll.noteManager.notes) {
+        if (note.key % NOTES_PER_OCTAVE === pitchClass) {
+            pianoRoll.noteManager.selectedNotes.add(note);
+            count++;
+        }
+    }
+    
+    // Emit selection changed event to trigger proper updates
+    pianoRoll.emit('selectionChanged');
+    
+    // Force immediate redraw
+    pianoRoll.dirty = true;
+    pianoRoll.renderer.needsRedraw = true;
+    velocityBar.draw();
+    panBar.draw();
+    
+    modalManager.notify(`Selected ${count} notes of the same pitch class`, 'info');
+}
+
 function handleSelectAll() {
     pianoRoll.noteManager.selectAll();
     pianoRoll.dirty = true;
@@ -547,6 +602,14 @@ function showShortcuts() {
         <div class="shortcut-item">
             <span class="shortcut-key">Delete</span>
             <span class="shortcut-desc">Delete selected notes</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">P</span>
+            <span class="shortcut-desc">Select all notes of same pitch class</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">Shift+P</span>
+            <span class="shortcut-desc">Add pitch class to selection</span>
         </div>
     </div>
 
@@ -615,7 +678,7 @@ function showShortcuts() {
 function showAbout() {
     // Get the about content from the HTML (for SEO purposes)
     const aboutElement = document.getElementById('aboutContent');
-    const about = aboutElement ? aboutElement.innerHTML : '<p>that38.org - 38-EDO Microtonal Sequencer</p>';
+    const about = aboutElement ? aboutElement.innerHTML : '<p>that46.org - 46-EDO Microtonal Sequencer</p>';
     
     modalManager.show('infoModal', {
         title: 'About',
@@ -639,7 +702,7 @@ function handleSave() {
  */
 function handleSaveAs() {
     const input = document.getElementById('saveAsFilename');
-    input.value = currentFilename || 'song.o38.json';
+    input.value = currentFilename || 'song.o46.json';
     
     // Set up event handlers
     const modal = document.getElementById('saveAsModal');
@@ -656,8 +719,8 @@ function handleSaveAs() {
     const handleConfirm = () => {
         let filename = input.value.trim();
         if (filename) {
-            if (!filename.endsWith('.o38.json')) {
-                filename += '.o38.json';
+            if (!filename.endsWith('.o46.json')) {
+                filename += '.o46.json';
             }
             currentFilename = filename;
             updatePageTitle();
@@ -713,7 +776,7 @@ function downloadSong(filename) {
 function handleOpen() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.o38.json,.json';
+    input.accept = '.o46.json,.json';
     
     input.onchange = async (e) => {
         const file = e.target.files[0];
@@ -749,8 +812,8 @@ async function loadOrgFromPath(path) {
         await pianoRoll.loadOrgFile(buffer);
         
         const filename = path.split('/').pop();
-        // Convert to .o38.json extension for saving
-        currentFilename = filename.replace(/\.org$/i, '.o38.json');
+        // Convert to .o46.json extension for saving
+        currentFilename = filename.replace(/\.org$/i, '.o46.json');
         updatePageTitle();
         modalManager.notify(`Loaded: ${filename}`, 'info');
     } catch (error) {
@@ -774,12 +837,36 @@ async function loadMidiFromPath(path) {
         await pianoRoll.loadMidiFile(buffer);
         
         const filename = path.split('/').pop();
-        // Convert to .o38.json extension for saving
-        currentFilename = filename.replace(/\.(mid|midi)$/i, '.o38.json');
+        // Convert to .o46.json extension for saving
+        currentFilename = filename.replace(/\.(mid|midi)$/i, '.o46.json');
         updatePageTitle();
         modalManager.notify(`Loaded: ${filename}`, 'info');
     } catch (error) {
         modalManager.notify(`Failed to load MIDI file: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Load JSON file from path
+ */
+async function loadJsonFromPath(path) {
+    try {
+        // Add cache-busting query parameter
+        const cacheBuster = `?t=${Date.now()}`;
+        const response = await fetch(path + cacheBuster, {
+            cache: 'no-cache'
+        });
+        if (!response.ok) throw new Error('File not found');
+        
+        const text = await response.text();
+        pianoRoll.importFromJSON(text);
+        
+        const filename = path.split('/').pop();
+        currentFilename = filename;
+        updatePageTitle();
+        modalManager.notify(`Loaded: ${filename}`, 'info');
+    } catch (error) {
+        modalManager.notify(`Failed to load file: ${error.message}`, 'error');
     }
 }
 
@@ -893,6 +980,12 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Delete') {
         e.preventDefault();
         handleDelete();
+    }
+    
+    // Select all notes of the same pitch class
+    if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        selectAllPitchClass(e);
     }
 });
 

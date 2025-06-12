@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="google" content="notranslate">
-    <title>that38.org</title>
+    <title>that46.org</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/styles.css?v=20250607212816">
+    <link rel="stylesheet" href="css/styles.css?v=20250612184704">
 </head>
 <body>
     <div id="container">
@@ -23,10 +23,10 @@
                     <div class="menu-option" id="menu-import-midi">Import MIDI (.mid)...</div>
                     <div class="menu-separator"></div>
                     <div class="menu-option has-submenu">
-                        <span>Tuned Songs (38 EDO)</span>
+                        <span>Tuned Songs (46 EDO)</span>
                         <span class="submenu-arrow">›</span>
                         <div class="menu-submenu">
-                            <div class="menu-option disabled">Coming Soon!</div>
+                            <div class="menu-option" data-json="songs/tuned/Moonsong.o46.json">Moonsong</div>
                         </div>
                     </div>
                     <div class="menu-option has-submenu">
@@ -115,7 +115,7 @@
         </div>
         
         <div id="controls">
-            <h1>that38.org</h1>
+            <h1>that46.org</h1>
             
             <div class="control-group transport">
                 <button id="playBtn" title="Play/Pause">
@@ -257,29 +257,38 @@
     <div id="tuningHelpModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">How to Tune a Song for 38 EDO</h2>
+                <h2 class="modal-title">How to Tune a Song for 46 EDO</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body" style="padding: 20px; line-height: 1.6;">
-                <p><strong>Why do imported songs sound out of tune?</strong></p>
-                <p>This piano roll uses 38 equal divisions of the octave (38 EDO), which provides much finer pitch control than standard 12-tone music. However, the 12 standard notes don't align perfectly with 38 EDO's grid - they land on positions that create a specific temperament.</p>
+                <p><strong>Why do imported songs sound different?</strong></p>
+                <p>This piano roll uses 46 equal divisions of the octave (46 EDO), where each step is ~26.09 cents. The 12 standard notes are mapped to specific positions that create an interesting temperament with slightly stretched octaves and varied interval sizes.</p>
                 
-                <p><strong>The current temperament uses these positions:</strong></p>
+                <p><strong>The current mapping:</strong></p>
                 <ul style="font-family: monospace; margin: 10px 0;">
-                    <li>C = 0, C# = 3, D = 6, D# = 9, E = 12, F = 15</li>
-                    <li>F# = 18, G = 22, G# = 25, A = 28, A# = 31, B = 34</li>
+                    <li>C = 0, C# = 5, D = 8, D# = 13, E = 16, F = 19</li>
+                    <li>F# = 24, G = 27, G# = 32, A = 35, A# = 40, B = 43</li>
                 </ul>
                 
-                <p><strong>How to tune a song:</strong></p>
+                <p><strong>What this temperament offers:</strong></p>
+                <ul style="margin: 10px 0;">
+                    <li>Fifths (C-G, D-A, etc.) are ~704 cents - slightly wider than pure (702 cents)</li>
+                    <li>Major thirds (C-E, F-A, etc.) are ~417 cents - wider than both pure (386 cents) and 12-EDO (400 cents)</li>
+                    <li>Minor thirds (C-E♭, D-F, etc.) are ~339 cents - wider than both 12-EDO (300 cents) and pure (316 cents)</li>
+                    <li>Semitones vary dramatically: some are ~130 cents (C-C#), others only ~78 cents (E-F, B-C)</li>
+                    <li>This creates a unique harmonic character with its own consonances and dissonances</li>
+                </ul>
+                
+                <p><strong>How to adapt imported music:</strong></p>
                 <ol style="margin: 10px 0;">
-                    <li>Some notes may need to be shifted up or down by 1-2 steps to sound correct</li>
-                    <li>Listen for notes that sound "sour" or create unwanted beating</li>
-                    <li>Try moving these notes up or down one 38 EDO step at a time</li>
-                    <li>Chords may need different adjustments than melodic lines</li>
-                    <li>Trust your ears - the goal is to make it sound good to you!</li>
+                    <li>The mapping preserves the relative pitch relationships, but in a different temperament</li>
+                    <li>Some intervals may sound more consonant, others more dissonant than expected</li>
+                    <li>You can adjust individual notes up or down by 1-2 steps for different harmonic colors</li>
+                    <li>Experiment with microtonality - try notes between the standard positions!</li>
+                    <li>Embrace the unique character rather than trying to exactly match 12-EDO</li>
                 </ol>
                 
-                <p><strong>Tip:</strong> When creating or editing music in 38-EDO, microtonal arrow indicators help identify notes between standard pitches.</p>
+                <p><strong>Tip:</strong> When creating or editing music in 46-EDO, microtonal arrow indicators help identify notes between standard pitches.</p>
             </div>
         </div>
     </div>
@@ -287,14 +296,14 @@
     <!-- About content (hidden, for SEO) -->
     <div id="aboutContent" style="display: none;">
         <div class="about-container">
-            <h2 style="margin-top: 0; color: #4a9eff;">that38.org</h2>
-            <p style="color: #ccc; margin-bottom: 20px;">38-EDO Microtonal Sequencer</p>
+            <h2 style="margin-top: 0; color: #4a9eff;">that46.org</h2>
+            <p style="color: #ccc; margin-bottom: 20px;">46-EDO Microtonal Sequencer</p>
             
-            <p>A piano roll sequencer with 38 equal divisions per octave (31.58 cents per step) for xenharmonic music.</p>
+            <p>A piano roll sequencer with 46 equal divisions per octave (26.09 cents per step) for xenharmonic music.</p>
             
             <h3>Features</h3>
             <ul style="list-style: none; padding: 0;">
-                <li>• 8 octaves of 38-EDO tuning</li>
+                <li>• 8 octaves of 46-EDO tuning</li>
                 <li>• Import .org and .mid files</li>
                 <li>• 100 wavetable instruments + 6 drums</li>
                 <li>• Per-note velocity and pan</li>
@@ -310,6 +319,6 @@
     </div>
     
     <!-- Load JavaScript modules -->
-    <script type="module" src="js/main.js?v=20250607212816"></script>
+    <script type="module" src="js/main.js?v=20250612184704"></script>
 </body>
 </html>

@@ -217,11 +217,11 @@ export class AudioEngine {
     }
 
     /**
-     * Calculate frequency for a given key in 38 EDO
+     * Calculate frequency for a given key in 46 EDO
      * @param {number} keyNumber - Key number
      */
     getFrequency(keyNumber) {
-        const middleAKey = 4 * NOTES_PER_OCTAVE + 28; // A4 in 38 EDO (meantone mapping)
+        const middleAKey = 4 * NOTES_PER_OCTAVE + 35; // A4 in 46 EDO
         const stepsFromA4 = keyNumber - middleAKey;
         const octaveOffset = stepsFromA4 / NOTES_PER_OCTAVE;
         return BASE_FREQUENCY * Math.pow(2, octaveOffset);
@@ -453,25 +453,25 @@ export class AudioEngine {
         const BASE_POINT_FREQS = [33408, 35584, 37632, 39808, 42112, 44672, 47488, 50048, 52992, 56320, 59648, 63232];
         const PERIOD_SIZES = [1024, 512, 256, 128, 64, 32, 16, 8];
         
-        // Convert 38-EDO to octave and position within octave
+        // Convert 46-EDO to octave and position within octave
         const octave = Math.floor(keyNumber / NOTES_PER_OCTAVE);
         const positionInOctave = keyNumber % NOTES_PER_OCTAVE;
         
-        // For 38 EDO, each step is 1200/38 = 31.58 cents
+        // For 46 EDO, each step is 1200/46 = 26.09 cents
         // Find the closest 12-tone pitch class
         let closestPitchClass = 0;
         let microtonalOffset = 0;
         
-        // Find which 12-tone note this 38-EDO step is closest to
+        // Find which 12-tone note this 46-EDO step is closest to
         for (let pc = 0; pc < 12; pc++) {
-            const targetPosition = Math.round((pc * 38) / 12);
+            const targetPosition = Math.round((pc * 46) / 12);
             if (positionInOctave === targetPosition) {
                 closestPitchClass = pc;
                 microtonalOffset = 0;
                 break;
             } else if (positionInOctave < targetPosition) {
                 // Between previous and current pitch class
-                const prevPosition = pc > 0 ? Math.round(((pc - 1) * 38) / 12) : 0;
+                const prevPosition = pc > 0 ? Math.round(((pc - 1) * 46) / 12) : 0;
                 const distToPrev = positionInOctave - prevPosition;
                 const distBetween = targetPosition - prevPosition;
                 closestPitchClass = pc - 1;
@@ -480,8 +480,8 @@ export class AudioEngine {
             } else if (pc === 11) {
                 // Past the last pitch class
                 closestPitchClass = 11;
-                const lastPosition = Math.round((11 * 38) / 12);
-                microtonalOffset = (positionInOctave - lastPosition) / (38 - lastPosition);
+                const lastPosition = Math.round((11 * 46) / 12);
+                microtonalOffset = (positionInOctave - lastPosition) / (46 - lastPosition);
             }
         }
         

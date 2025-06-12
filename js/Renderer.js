@@ -25,20 +25,20 @@ export class Renderer {
         // Note name patterns
         this.noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
         
-        // 12-tone to 38 EDO mapping (A-rooted meantone intervals starting from C)
-        this.twelveToThirtyEightMap = {
+        // 12-tone to 46 EDO mapping
+        this.twelveToFortyEightMap = {
             0: 0,   // C
-            1: 3,   // C#
-            2: 6,   // D
-            3: 9,   // D#
-            4: 12,  // E
-            5: 15,  // F
-            6: 18,  // F#
-            7: 22,  // G
-            8: 25,  // G#
-            9: 28,  // A
-            10: 31, // A#
-            11: 34  // B
+            1: 5,   // C#
+            2: 8,   // D
+            3: 13,  // D#
+            4: 16,  // E
+            5: 19,  // F
+            6: 24,  // F#
+            7: 27,  // G
+            8: 32,  // G#
+            9: 35,  // A
+            10: 40, // A#
+            11: 43  // B
         };
         
         // Cached canvases for static elements
@@ -359,7 +359,7 @@ export class Renderer {
                 }
             }
             
-            // Draw microtonal indicators for 38 EDO
+            // Draw microtonal indicators for 46 EDO
             this.ctx.fillStyle = '#cccccc';
             for (const note of notes) {
                 if (!this.pianoRoll.noteManager.selectedNotes.has(note)) {
@@ -367,7 +367,7 @@ export class Renderer {
                     
                     // Check if this is NOT an exact 12-tone match
                     let isExactMatch = false;
-                    const exactPositions = [0, 3, 6, 9, 12, 15, 18, 22, 25, 28, 31, 34]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+                    const exactPositions = [0, 5, 8, 13, 16, 19, 24, 27, 32, 35, 40, 43]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
                     for (const edoStep of exactPositions) {
                         if (keyInOctave === edoStep) {
                             isExactMatch = true;
@@ -378,12 +378,12 @@ export class Renderer {
                     if (!isExactMatch) {
                         // Find the closest 12-tone notes (before and after)
                         let closestLower = -1;
-                        let closestUpper = 38;
+                        let closestUpper = 46;
                         let lowerNote = -1;
                         let upperNote = -1;
                         
                         // Create sorted array of EDO positions
-                        const edoPositions = [0, 3, 6, 9, 12, 15, 18, 22, 25, 28, 31, 34]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+                        const edoPositions = [0, 5, 8, 13, 16, 19, 24, 27, 32, 35, 40, 43]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
                         
                         for (let i = 0; i < edoPositions.length; i++) {
                             const edoStep = edoPositions[i];
@@ -410,7 +410,7 @@ export class Renderer {
                         let numArrows = 0;
                         let isUp = false;
                         
-                        // Each step in 38 EDO is about 31.58 cents
+                        // Each step in 46 EDO is about 26.09 cents
                         // Show arrows based on distance from nearest 12-tone note
                         // Max 3 arrows to avoid clutter
                         if (distToLower <= distToUpper) {
@@ -534,7 +534,7 @@ export class Renderer {
         
         // Check if this is NOT an exact 12-tone match
         let isExactMatch = false;
-        const exactPositions = [0, 3, 6, 9, 12, 15, 18, 22, 25, 28, 31, 34]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+        const exactPositions = [0, 5, 8, 13, 16, 19, 24, 27, 32, 35, 40, 43]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
         for (const edoStep of exactPositions) {
             if (keyInOctave === edoStep) {
                 isExactMatch = true;
@@ -553,12 +553,12 @@ export class Renderer {
             
             // Find the closest 12-tone notes (before and after)
             let closestLower = -1;
-            let closestUpper = 38;
+            let closestUpper = 46;
             let lowerNote = -1;
             let upperNote = -1;
             
             // Create sorted array of EDO positions
-            const edoPositions = [0, 3, 6, 9, 12, 15, 18, 22, 25, 28, 31, 34]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+            const edoPositions = [0, 5, 8, 13, 16, 19, 24, 27, 32, 35, 40, 43]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
             
             for (let i = 0; i < edoPositions.length; i++) {
                 const edoStep = edoPositions[i];
@@ -573,8 +573,8 @@ export class Renderer {
             }
             
             // Handle wrap-around at octave boundary
-            if (closestUpper === 38 && keyInOctave > 35) {
-                closestUpper = 38; // Next C
+            if (closestUpper === 46 && keyInOctave > 43) {
+                closestUpper = 46; // Next C
                 upperNote = 0;
             }
             
@@ -585,7 +585,7 @@ export class Renderer {
             let numArrows = 0;
             let isUp = false;
             
-            // Each step in 38 EDO is about 31.58 cents
+            // Each step in 46 EDO is about 26.09 cents
             // Show arrows based on distance from nearest 12-tone note
             // Max 3 arrows to avoid clutter
             if (distToLower <= distToUpper) {
@@ -693,12 +693,12 @@ export class Renderer {
             const keyInOctave = keyNumber % NOTES_PER_OCTAVE;
             const octave = Math.floor(keyNumber / NOTES_PER_OCTAVE);
             
-            // Find which 12-tone note this 38-EDO step is closest to
+            // Find which 12-tone note this 46-EDO step is closest to
             let closestNote = -1;
-            let minDistance = 38;
+            let minDistance = 46;
             let isExactMatch = false;
             
-            for (const [note, edoStep] of Object.entries(this.twelveToThirtyEightMap)) {
+            for (const [note, edoStep] of Object.entries(this.twelveToFortyEightMap)) {
                 const distance = Math.abs(keyInOctave - edoStep);
                 if (distance < minDistance) {
                     minDistance = distance;
@@ -719,7 +719,7 @@ export class Renderer {
                 cacheCtx.fillStyle = '#4a9eff';
             } else if (isHovered) {
                 // Highlight hovered key
-                cacheCtx.fillStyle = isBlackKey ? '#3a3a3a' : '#5a5a5a';
+                cacheCtx.fillStyle = isBlackKey ? COLORS.blackKeyHighlight : COLORS.whiteKeyHighlight;
             } else if (isBlackKey) {
                 cacheCtx.fillStyle = COLORS.blackKey;
             } else {

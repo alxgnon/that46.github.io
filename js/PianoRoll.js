@@ -590,7 +590,7 @@ export class PianoRoll {
         const measureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
         
         const songData = {
-            fileType: 'o38-song',
+            fileType: 'o46-song',
             version: '2.0',
             tempo: this.currentBPM,
             timeSignature: `${BEATS_PER_MEASURE}/4`,
@@ -667,8 +667,8 @@ export class PianoRoll {
             const songData = JSON.parse(jsonString);
             
             // Check file type for version 2.0+
-            if (songData.fileType && songData.fileType !== 'o38-song') {
-                throw new Error('Invalid file type. Expected o38-song file.');
+            if (songData.fileType && songData.fileType !== 'o46-song') {
+                throw new Error('Invalid file type. Expected o46-song file.');
             }
             
             // Clear existing notes and org info

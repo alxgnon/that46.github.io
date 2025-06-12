@@ -1,4 +1,4 @@
-import { PIANO_KEY_WIDTH, RESIZE_HANDLE_WIDTH, NUM_OCTAVES, NOTES_PER_OCTAVE, NOTE_HEIGHT, GRID_WIDTH, GRID_SUBDIVISIONS } from './constants.js';
+import { PIANO_KEY_WIDTH, RESIZE_HANDLE_WIDTH, NUM_OCTAVES, NOTES_PER_OCTAVE, NOTE_HEIGHT, GRID_WIDTH, GRID_SUBDIVISIONS, BEATS_PER_MEASURE } from './constants.js';
 
 /**
  * Handles all user input events
@@ -13,7 +13,6 @@ export class InputHandler {
         this.mouseY = 0;
         this.isDragging = false;
         this.isResizing = false;
-        this.isCreatingNote = false;
         this.isSelecting = false;
         this.isDeleteSelecting = false;
         
@@ -318,48 +317,29 @@ export class InputHandler {
         const unscaledX = PIANO_KEY_WIDTH + (x - PIANO_KEY_WIDTH) / scaleFactor;
         
         const snappedX = this.pianoRoll.gridSnap ? this.pianoRoll.snapXToGrid(unscaledX) + PIANO_KEY_WIDTH : unscaledX;
+        
+        // Create note with default width (one grid subdivision)
+        const defaultWidth = this.pianoRoll.baseGridWidth * BEATS_PER_MEASURE / this.pianoRoll.getSnapDivisions();
+        
         const noteData = {
             x: snappedX,
             y: (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - key) * NOTE_HEIGHT,
+            width: defaultWidth,
             key: key,
             velocity: this.pianoRoll.currentVelocity,
             instrument: this.pianoRoll.currentSample
         };
         
         const newNote = this.pianoRoll.noteManager.createNote(noteData);
-        this.dragNote = newNote;
-        this.isCreatingNote = true;
-        this.createStartX = newNote.x;
+        
+        // Select the newly created note
         this.pianoRoll.noteManager.selectedNotes.clear();
+        this.pianoRoll.noteManager.selectedNotes.add(newNote);
+        
         this.pianoRoll.emit('notesChanged');
         this.pianoRoll.dirty = true;
     }
 
-    /**
-     * Handle note creation (extending width while dragging)
-     */
-    handleNoteCreation(x, y) {
-        if (!this.dragNote) return;
-        
-        // Convert screen position to note position by unscaling
-        const scaleFactor = this.pianoRoll.gridWidth / this.pianoRoll.baseGridWidth;
-        const unscaledX = PIANO_KEY_WIDTH + (x - PIANO_KEY_WIDTH) / scaleFactor;
-        
-        // Extend note width based on current position
-        const newWidth = unscaledX - this.dragNote.x;
-        if (newWidth > 0) {
-            if (this.pianoRoll.gridSnap) {
-                // Snap the end position to grid
-                const snapDivisions = this.pianoRoll.getSnapDivisions();
-                const subdivisionWidth = this.pianoRoll.baseGridWidth * BEATS_PER_MEASURE / snapDivisions;
-                const snappedWidth = Math.ceil(newWidth / subdivisionWidth) * subdivisionWidth;
-                this.dragNote.width = Math.max(subdivisionWidth, snappedWidth);
-            } else {
-                this.dragNote.width = newWidth;
-            }
-            this.pianoRoll.dirty = true;
-        }
-    }
     
     /**
      * Handle mouse move
@@ -383,8 +363,6 @@ export class InputHandler {
         // Handle different drag modes
         if (this.isResizing) {
             this.handleResize(x, y);
-        } else if (this.isCreatingNote && this.dragNote) {
-            this.handleNoteCreation(x, y);
         } else if (this.isDragging) {
             this.handleDrag(x, y);
         } else if (this.isSelecting || this.isDeleteSelecting) {
@@ -618,14 +596,13 @@ export class InputHandler {
         }
         
         // Emit notesChanged if we were editing notes
-        if (this.isDragging || this.isResizing || this.isCreatingNote) {
+        if (this.isDragging || this.isResizing) {
             this.pianoRoll.emit('notesChanged');
         }
         
         // Reset all states
         this.isDragging = false;
         this.isResizing = false;
-        this.isCreatingNote = false;
         this.isSelecting = false;
         this.isDeleteSelecting = false;
         this.isGlissando = false;
@@ -899,17 +876,11 @@ export class InputHandler {
      * Cancel current interaction
      */
     cancelCurrentInteraction() {
-        // Cancel any ongoing drag, resize, or note creation
-        if (this.isDragging || this.isResizing || this.isCreatingNote) {
-            // If we were creating a note, remove it
-            if (this.isCreatingNote && this.dragNote) {
-                this.pianoRoll.noteManager.deleteNote(this.dragNote);
-            }
-            
+        // Cancel any ongoing drag or resize
+        if (this.isDragging || this.isResizing) {
             // Reset all interaction states
             this.isDragging = false;
             this.isResizing = false;
-            this.isCreatingNote = false;
             this.isSelecting = false;
             this.isDeleteSelecting = false;
             this.dragNote = null;
@@ -1043,21 +1014,21 @@ export class InputHandler {
      * Handle MIDI Note On
      */
     handleMIDINoteOn(midiNote, velocity) {
-        // Convert MIDI note to 38-EDO key number
-        // Import the 12-tone to 38 EDO mapping
-        const TWELVE_TO_38_EDO_MAP = {
+        // Convert MIDI note to 46-EDO key number
+        // Import the 12-tone to 46 EDO mapping
+        const TWELVE_TO_46_EDO_MAP = {
             0: 0,   // C
-            1: 3,   // C#
-            2: 6,   // D
-            3: 9,   // D#
-            4: 12,  // E
-            5: 15,  // F
-            6: 18,  // F#
-            7: 22,  // G
-            8: 25,  // G#
-            9: 28,  // A
-            10: 31, // A#
-            11: 34  // B
+            1: 5,   // C#
+            2: 8,   // D
+            3: 13,  // D#
+            4: 16,  // E
+            5: 19,  // F
+            6: 24,  // F#
+            7: 27,  // G
+            8: 32,  // G#
+            9: 35,  // A
+            10: 40, // A#
+            11: 43  // B
         };
         
         // MIDI note 60 = Middle C = C4
@@ -1067,7 +1038,7 @@ export class InputHandler {
         
         // C4 should be at key 152 (same as before), which is octave 4 in the old system
         const c4KeyNumber = 4 * NOTES_PER_OCTAVE; // 152 (4 × 38)
-        const keyNumber = c4KeyNumber + octaveShift * NOTES_PER_OCTAVE + TWELVE_TO_38_EDO_MAP[noteInOctave];
+        const keyNumber = c4KeyNumber + octaveShift * NOTES_PER_OCTAVE + TWELVE_TO_46_EDO_MAP[noteInOctave];
         
         // Check if key is within valid range (0-575)
         if (keyNumber < 0 || keyNumber >= NUM_OCTAVES * NOTES_PER_OCTAVE) {
@@ -1078,7 +1049,7 @@ export class InputHandler {
         this.pianoRoll.playPianoKey(keyNumber, velocity);
         
         // Debug: Log the mapping
-        console.log(`MIDI ${midiNote} (${this.getMidiNoteName(midiNote)}) -> 38EDO key ${keyNumber}, position in octave: ${keyNumber % NOTES_PER_OCTAVE}`);
+        console.log(`MIDI ${midiNote} (${this.getMidiNoteName(midiNote)}) -> 46EDO key ${keyNumber}, position in octave: ${keyNumber % NOTES_PER_OCTAVE}`);
         
         // Store the mapping (allow multiple notes)
         if (!this.midiNoteMap.has(midiNote)) {
