@@ -1044,8 +1044,8 @@ export class InputHandler {
         const octaveShift = Math.floor((midiNote - midiC4) / 12);
         const noteInOctave = (midiNote % 12 + 12) % 12; // Ensure positive
         
-        // C4 should be at key 152 (same as before), which is octave 4 in the old system
-        const c4KeyNumber = 4 * NOTES_PER_OCTAVE; // 152 (4 × 38)
+        // C4 should be at key 184 (octave 4 in 46 EDO)
+        const c4KeyNumber = 4 * NOTES_PER_OCTAVE; // 184 (4 × 46)
         const keyNumber = c4KeyNumber + octaveShift * NOTES_PER_OCTAVE + TWELVE_TO_46_EDO_MAP[noteInOctave];
         
         // Check if key is within valid range (0-575)
@@ -1096,8 +1096,8 @@ export class InputHandler {
         }
         
         // Handle wrap-around at octave boundary
-        if (positionInOctave > 35) {
-            const distanceToNextC = 38 - positionInOctave;
+        if (positionInOctave > 43) {
+            const distanceToNextC = 46 - positionInOctave;
             if (distanceToNextC < minDistance) {
                 return (octave + 1) * NOTES_PER_OCTAVE;
             }

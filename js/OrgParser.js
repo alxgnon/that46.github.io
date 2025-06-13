@@ -1,4 +1,4 @@
-import { 
+import {
     ORG_FILE_SIGNATURE,
     ORG_VERSION,
     ORG_MAX_KEY,
@@ -23,28 +23,28 @@ export class OrgParser {
     static parse(buffer) {
         const view = new DataView(buffer);
         let offset = 0;
-        
+
         // Check minimum file size
         if (buffer.byteLength < 18) {
             throw new Error('File too small to be a valid ORG file');
         }
-        
+
         // Read header
         const header = this.readHeader(view, offset);
         offset += 18;
-        
+
         if (header.signature !== ORG_FILE_SIGNATURE) {
             throw new Error('Invalid ORG file signature');
         }
-        
-        
+
+
         // Read instruments
         const instruments = this.readInstruments(view, offset);
         offset += 16 * 6; // 16 tracks * 6 bytes each
-        
+
         // Read all track data
         const tracks = this.readAllTracks(view, offset, instruments);
-        
+
         return {
             header,
             instruments,
@@ -61,11 +61,11 @@ export class OrgParser {
         if (view.byteLength < offset + 18) {
             throw new Error('Invalid ORG file: not enough data for header');
         }
-        
+
         const decoder = new TextDecoder('ascii');
         const signatureBytes = new Uint8Array(view.buffer, offset, 6);
         const signature = decoder.decode(signatureBytes);
-        
+
         return {
             signature: signature,
             wait: view.getUint16(offset + 6, true), // 'wait' is the tempo field in ORG
@@ -84,25 +84,25 @@ export class OrgParser {
         if (view.byteLength < offset + 16 * 6) {
             throw new Error('Invalid ORG file: not enough data for instruments');
         }
-        
+
         const instruments = [];
-        
+
         for (let i = 0; i < 16; i++) {
             const freq = view.getUint16(offset + i * 6, true);
             const wave = view.getUint8(offset + i * 6 + 2);
             const pipiValue = view.getUint8(offset + i * 6 + 3);
             const noteCount = view.getUint16(offset + i * 6 + 4, true);
-            
+
             const inst = {
                 pitch: freq,
                 instrument: wave,
                 pipi: pipiValue,
                 noteCount: noteCount
             };
-            
+
             instruments.push(inst);
         }
-        
+
         return instruments;
     }
 
@@ -111,7 +111,7 @@ export class OrgParser {
      */
     static readAllTracks(view, offset, instruments) {
         const tracks = [];
-        
+
         // Read track data for each instrument
         for (let i = 0; i < 16; i++) {
             const noteCount = instruments[i].noteCount;
@@ -119,13 +119,13 @@ export class OrgParser {
                 noteCount: noteCount,
                 notes: []
             };
-            
+
             if (noteCount > 0) {
                 // Initialize note array
                 for (let j = 0; j < noteCount; j++) {
                     track.notes.push({ position: 0, key: 0, length: 0, volume: 0, pan: 0 });
                 }
-                
+
                 // Read positions for all notes in this track
                 for (let j = 0; j < noteCount; j++) {
                     if (offset + 4 > view.byteLength) {
@@ -134,7 +134,7 @@ export class OrgParser {
                     track.notes[j].position = view.getUint32(offset, true);
                     offset += 4;
                 }
-                
+
                 // Read keys for all notes in this track
                 for (let j = 0; j < noteCount; j++) {
                     if (offset + 1 > view.byteLength) {
@@ -143,7 +143,7 @@ export class OrgParser {
                     track.notes[j].key = view.getUint8(offset);
                     offset += 1;
                 }
-                
+
                 // Read lengths for all notes in this track
                 for (let j = 0; j < noteCount; j++) {
                     if (offset + 1 > view.byteLength) {
@@ -152,7 +152,7 @@ export class OrgParser {
                     track.notes[j].length = view.getUint8(offset);
                     offset += 1;
                 }
-                
+
                 // Read volumes for all notes in this track
                 for (let j = 0; j < noteCount; j++) {
                     if (offset + 1 > view.byteLength) {
@@ -161,7 +161,7 @@ export class OrgParser {
                     track.notes[j].volume = view.getUint8(offset);
                     offset += 1;
                 }
-                
+
                 // Read pan values for all notes in this track
                 for (let j = 0; j < noteCount; j++) {
                     if (offset + 1 > view.byteLength) {
@@ -170,13 +170,13 @@ export class OrgParser {
                     track.notes[j].pan = view.getUint8(offset);
                     offset += 1;
                 }
-                
+
                 // Don't filter out notes with key = 255 - they might be volume/pan changes
             }
-            
+
             tracks.push(track);
         }
-        
+
         return tracks;
     }
 
@@ -189,33 +189,33 @@ export class OrgParser {
     static convertToNotes(orgData, targetBpm = 120) {
         const notes = [];
         const { header, instruments, tracks } = orgData;
-        
+
         // ORG 'wait' value represents milliseconds per tick
         // Lower wait = faster tempo
         const msPerTick = header.wait;
         const ticksPerBeat = header.stepsPerBar * header.beatsPerStep / 4; // Assuming 4/4 time
         const orgBpm = 60000 / (msPerTick * ticksPerBeat);
-        
+
         // Calculate pixel scaling
         const pixelsPerBeat = GRID_WIDTH;
         const pixelsPerTick = pixelsPerBeat / ticksPerBeat;
-        
+
         // Convert each track
         tracks.forEach((track, trackIndex) => {
             if (track.notes.length === 0) return;
-            
+
             const instrument = instruments[trackIndex];
             const instrumentName = this.getInstrumentName(instrument.instrument, trackIndex);
-            
+
             // Process notes with volume automation
             const processedNotes = this.processVolumeAutomation(track.notes, instrument, instrumentName, pixelsPerTick);
             notes.push(...processedNotes);
         });
-        
+
         // Calculate loop points in measures
         const loopStart = Math.floor(header.loopStart * pixelsPerTick / (GRID_WIDTH * BEATS_PER_MEASURE));
         const loopEnd = Math.floor(header.loopEnd * pixelsPerTick / (GRID_WIDTH * BEATS_PER_MEASURE));
-        
+
         return {
             notes,
             tempo: Math.round(orgBpm), // Convert from wait value to BPM
@@ -233,8 +233,8 @@ export class OrgParser {
     static processVolumeAutomation(events, instrument, instrumentName, pixelsPerTick) {
         const notes = [];
         const activeNotes = new Map(); // Track active notes by key
-        
-        
+
+
         events.forEach(event => {
             // Clean up notes that have ended before this event
             for (const [key, activeNote] of activeNotes) {
@@ -242,29 +242,29 @@ export class OrgParser {
                     activeNotes.delete(key);
                 }
             }
-            
+
             if (event.key !== 255) {
                 // New note starts
                 const x = PIANO_KEY_WIDTH + (event.position * pixelsPerTick);
-                const key72 = this.convertKeyTo46edo(event.key);
-                const y = (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - key72) * NOTE_HEIGHT;
+                const key46 = this.convertKeyTo46edo(event.key);
+                const y = (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - key46) * NOTE_HEIGHT;
                 // For very short notes, use the actual length without minimum
                 // This preserves the staccato/gating effect
                 const width = event.length * pixelsPerTick;
-                
+
                 // Initial volume and pan
                 const velocity = event.volume !== 255 ? Math.round(event.volume / 2) : 100;
                 let pan = 0;
                 if (event.pan !== 255 && event.pan <= 12) {
                     pan = (event.pan - 6) * 100 / 6;
                 }
-                
+
                 const noteData = {
                     x,
                     y,
                     width,
                     height: NOTE_HEIGHT,
-                    key: key72,
+                    key: key46,
                     velocity,
                     pan,
                     instrument: instrumentName,
@@ -273,24 +273,24 @@ export class OrgParser {
                     volumeAutomation: [], // Array of {position, volume} points
                     panAutomation: []     // Array of {position, pan} points
                 };
-                
-                
+
+
                 // Track this as an active note
                 activeNotes.set(event.key, {
                     note: noteData,
                     startPos: event.position,
                     endPos: event.position + event.length
                 });
-                
+
                 notes.push(noteData);
-                
+
             } else {
                 // Volume/pan change event (key=255)
                 // Find which note this applies to
                 for (const [key, activeNote] of activeNotes) {
-                    if (event.position >= activeNote.startPos && 
+                    if (event.position >= activeNote.startPos &&
                         event.position < activeNote.endPos) {
-                        
+
                         // Add volume automation point
                         if (event.volume !== 255) {
                             const relativePos = event.position - activeNote.startPos;
@@ -303,7 +303,7 @@ export class OrgParser {
                                 absolutePosition: event.position // Store absolute position for timing
                             });
                         }
-                        
+
                         // Add pan automation point
                         if (event.pan !== 255 && event.pan <= 12) {
                             const relativePos = event.position - activeNote.startPos;
@@ -315,25 +315,25 @@ export class OrgParser {
                                 pan: pan
                             });
                         }
-                        
+
                         break; // Only apply to one active note
                     }
                 }
             }
         });
-        
+
         // Clean up active notes that have ended
         activeNotes.clear();
-        
+
         return notes;
     }
-    
+
     /**
      * Convert ORG key (0-95) to 46edo key
      */
     static convertKeyTo46edo(orgKey) {
         if (orgKey > ORG_MAX_KEY) return 0;
-        
+
         // Import the mapping from constants
         const TWELVE_TO_46_EDO_MAP = {
             0: 0,   // C
@@ -349,11 +349,11 @@ export class OrgParser {
             10: 40, // A#
             11: 43  // B
         };
-        
+
         // ORG uses standard 12-TET keys
         const octave = Math.floor(orgKey / 12);
         const noteInOctave = orgKey % 12;
-        
+
         // Use the 12-tone to 46 EDO mapping
         return octave * NOTES_PER_OCTAVE + TWELVE_TO_46_EDO_MAP[noteInOctave];
     }
@@ -375,7 +375,7 @@ export class OrgParser {
                 return `ORG_D${drumIndex.toString().padStart(2, '0')}`;
             }
         }
-        
+
         // Default to first melodic instrument
         return 'ORG_M00';
     }
@@ -389,70 +389,70 @@ export class OrgParser {
     static createOrgFile(notes, settings = {}) {
         // Group notes by instrument/track
         const trackMap = new Map();
-        
+
         notes.forEach(note => {
             if (!trackMap.has(note.instrument)) {
                 trackMap.set(note.instrument, []);
             }
             trackMap.get(note.instrument).push(note);
         });
-        
+
         // Create tracks (max 16)
         const tracks = [];
         let trackIndex = 0;
-        
+
         for (const [instrument, trackNotes] of trackMap) {
             if (trackIndex >= 16) break;
-            
+
             // Sort notes by position
             trackNotes.sort((a, b) => a.x - b.x);
-            
+
             // Convert notes to ORG format
             const orgNotes = trackNotes.map(note => ({
                 position: Math.round((note.x - PIANO_KEY_WIDTH) / (GRID_WIDTH / 4)),
-                key: this.convert38edoToOrgKey(note.key),
+                key: this.convert46edoToOrgKey(note.key),
                 length: Math.round(note.width / (GRID_WIDTH / 4)),
                 volume: Math.min(254, note.velocity * 2),
                 pan: Math.round(note.pan * 6 / 100 + 6)
             }));
-            
+
             tracks.push({
                 instrument,
                 notes: orgNotes,
                 instrumentNum: this.getInstrumentNumber(instrument),
                 isDrum: instrument.startsWith('ORG_D')
             });
-            
+
             trackIndex++;
         }
-        
+
         // Pad with empty tracks
         while (tracks.length < 16) {
             tracks.push({ notes: [], instrumentNum: 0, isDrum: false });
         }
-        
+
         // Calculate file size
         const headerSize = 18 + 16 * 6; // Header + instruments
-        const trackDataSize = tracks.reduce((sum, track) => 
+        const trackDataSize = tracks.reduce((sum, track) =>
             sum + 4 + track.notes.length * 8, 0);
         const fileSize = headerSize + trackDataSize;
-        
+
         // Create buffer and write data
         const buffer = new ArrayBuffer(fileSize);
         const view = new DataView(buffer);
         let offset = 0;
-        
+
         // Write header
         offset = this.writeHeader(view, offset, settings);
-        
+
         // Write instruments
         offset = this.writeInstruments(view, offset, tracks);
-        
+
         // Write tracks
         tracks.forEach(track => {
             offset = this.writeTrack(view, offset, track);
         });
-        
+
         return buffer;
     }
 
@@ -462,21 +462,21 @@ export class OrgParser {
     static writeHeader(view, offset, settings) {
         const encoder = new TextEncoder();
         const signature = encoder.encode(ORG_FILE_SIGNATURE);
-        
+
         // Write signature
         for (let i = 0; i < 6; i++) {
             view.setUint8(offset + i, signature[i]);
         }
-        
+
         // Write tempo and time signature
         view.setUint16(offset + 6, settings.tempo || 120, true);
         view.setUint8(offset + 8, settings.stepsPerBar || 4);
         view.setUint8(offset + 9, settings.beatsPerStep || 4);
-        
+
         // Write loop points
         view.setUint32(offset + 10, settings.loopStart || 0, true);
         view.setUint32(offset + 14, settings.loopEnd || 0, true);
-        
+
         return offset + 18;
     }
 
@@ -490,7 +490,7 @@ export class OrgParser {
             view.setUint8(offset + i * 6 + 3, 0); // pipi flag
             view.setUint16(offset + i * 6 + 4, track.notes.length, true);
         });
-        
+
         return offset + 16 * 6;
     }
 
@@ -499,11 +499,11 @@ export class OrgParser {
      */
     static writeTrack(view, offset, track) {
         const noteCount = track.notes.length;
-        
+
         // Write note count
         view.setUint32(offset, noteCount, true);
         offset += 4;
-        
+
         // Write note data in separate arrays
         track.notes.forEach((note, i) => {
             view.setUint32(offset + i * 4, note.position, true);
@@ -512,7 +512,7 @@ export class OrgParser {
             view.setUint8(offset + noteCount * 6 + i, note.volume);
             view.setUint8(offset + noteCount * 7 + i, note.pan);
         });
-        
+
         return offset + noteCount * 8;
     }
 
@@ -535,14 +535,14 @@ export class OrgParser {
             40: 10, // A#
             43: 11  // B
         };
-        
+
         const octave = Math.floor(key46 / NOTES_PER_OCTAVE);
         const positionInOctave = key46 % NOTES_PER_OCTAVE;
-        
+
         // Find the closest 12-tone note
         let closestNote = 0;
         let minDistance = Math.abs(positionInOctave - 0);
-        
+
         for (const [edo46, note12] of Object.entries(FORTY_SIX_TO_TWELVE_MAP)) {
             const distance = Math.abs(positionInOctave - parseInt(edo46));
             if (distance < minDistance) {
@@ -550,7 +550,7 @@ export class OrgParser {
                 closestNote = note12;
             }
         }
-        
+
         const orgKey = octave * 12 + closestNote;
         return Math.min(ORG_MAX_KEY, Math.max(0, orgKey));
     }

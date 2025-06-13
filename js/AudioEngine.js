@@ -439,7 +439,7 @@ export class AudioEngine {
      * Calculate playback rate for drum
      */
     calculateDrumPlaybackRate(keyNumber) {
-        const drumKey = Math.round(keyNumber / 3.17); // Adjusted for 38 EDO
+        const drumKey = Math.round(keyNumber / 3.83); // Adjusted for 46 EDO
         const clampedKey = Math.max(0, Math.min(255, drumKey));
         const drumFreq = clampedKey * 800 + 100;
         return drumFreq / BASE_SAMPLE_RATE;
