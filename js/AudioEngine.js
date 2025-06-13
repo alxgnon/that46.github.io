@@ -5,7 +5,8 @@ import {
     PORTAMENTO_TIME,
     AUDIO_STOP_DELAY,
     ORG_VELOCITY_SCALE,
-    MAX_DRUMS
+    MAX_DRUMS,
+    TWELVE_TO_46_EDO_MAP
 } from './constants.js';
 
 /**
@@ -457,50 +458,66 @@ export class AudioEngine {
         const octave = Math.floor(keyNumber / NOTES_PER_OCTAVE);
         const positionInOctave = keyNumber % NOTES_PER_OCTAVE;
         
-        // For 46 EDO, each step is 1200/46 = 26.09 cents
-        // Find the closest 12-tone pitch class
-        let closestPitchClass = 0;
-        let microtonalOffset = 0;
+        // For pure 46 EDO, each step is exactly 1200/46 = 26.0869565... cents
+        // We need to map this to Organya's 12-tone pitch classes
         
-        // Find which 12-tone note this 46-EDO step is closest to
-        for (let pc = 0; pc < 12; pc++) {
-            const targetPosition = Math.round((pc * 46) / 12);
-            if (positionInOctave === targetPosition) {
-                closestPitchClass = pc;
-                microtonalOffset = 0;
+        // Create reverse map for finding closest 12-tone pitch
+        const edo46Positions = Object.values(TWELVE_TO_46_EDO_MAP).sort((a, b) => a - b);
+        
+        // Find the two 12-tone positions this 46-EDO position falls between
+        let lowerPitchClass = 0;
+        let upperPitchClass = 0;
+        let lowerPosition = 0;
+        let upperPosition = edo46Positions[0];
+        
+        for (let i = 0; i < edo46Positions.length; i++) {
+            if (positionInOctave === edo46Positions[i]) {
+                // Exact match to a 12-tone pitch
+                lowerPitchClass = upperPitchClass = i;
+                lowerPosition = upperPosition = edo46Positions[i];
                 break;
-            } else if (positionInOctave < targetPosition) {
-                // Between previous and current pitch class
-                const prevPosition = pc > 0 ? Math.round(((pc - 1) * 46) / 12) : 0;
-                const distToPrev = positionInOctave - prevPosition;
-                const distBetween = targetPosition - prevPosition;
-                closestPitchClass = pc - 1;
-                microtonalOffset = distToPrev / distBetween;
+            } else if (positionInOctave < edo46Positions[i]) {
+                // Found the upper bound
+                upperPitchClass = i;
+                upperPosition = edo46Positions[i];
+                if (i > 0) {
+                    lowerPitchClass = i - 1;
+                    lowerPosition = edo46Positions[i - 1];
+                } else {
+                    // Below C, wrap to B from previous octave
+                    lowerPitchClass = 11;
+                    lowerPosition = edo46Positions[11] - NOTES_PER_OCTAVE;
+                }
                 break;
-            } else if (pc === 11) {
-                // Past the last pitch class
-                closestPitchClass = 11;
-                const lastPosition = Math.round((11 * 46) / 12);
-                microtonalOffset = (positionInOctave - lastPosition) / (46 - lastPosition);
+            } else if (i === edo46Positions.length - 1) {
+                // Above B, wrap to C of next octave
+                lowerPitchClass = 11;
+                lowerPosition = edo46Positions[11];
+                upperPitchClass = 0;
+                upperPosition = NOTES_PER_OCTAVE;
             }
+        }
+        
+        // Calculate the interpolation factor between the two pitch classes
+        let interpolationFactor = 0;
+        if (upperPosition !== lowerPosition) {
+            interpolationFactor = (positionInOctave - lowerPosition) / (upperPosition - lowerPosition);
         }
         
         // Clamp octave to valid range
         const clampedOctave = Math.max(0, Math.min(7, octave));
         
-        // Get base frequency for this pitch class
-        const baseFreq = BASE_POINT_FREQS[closestPitchClass];
+        // Get base frequencies for interpolation
+        const lowerFreq = BASE_POINT_FREQS[lowerPitchClass];
+        const upperFreq = lowerPitchClass === 11 && upperPitchClass === 0 
+            ? BASE_POINT_FREQS[0] * 2 // Next octave C
+            : BASE_POINT_FREQS[upperPitchClass];
         
-        // For microtonal interpolation, use exponential interpolation
-        // Frequency ratios in equal temperament are exponential, not linear
-        let frequencyMultiplier = 1;
-        if (microtonalOffset > 0) {
-            // Each semitone is a ratio of 2^(1/12)
-            frequencyMultiplier = Math.pow(2, microtonalOffset / 12);
-        }
+        // Exponential interpolation for frequency (since frequency ratios are logarithmic)
+        const interpolatedFreq = lowerFreq * Math.pow(upperFreq / lowerFreq, interpolationFactor);
         
-        // Apply frequency adjustment and microtonal multiplier
-        const finalFreq = (baseFreq + freqAdjust) * frequencyMultiplier;
+        // Apply frequency adjustment
+        const finalFreq = interpolatedFreq + freqAdjust;
         const organyaFreq = finalFreq / PERIOD_SIZES[clampedOctave];
         
         // Convert to playback rate (256 samples per period)
