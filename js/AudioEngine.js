@@ -457,50 +457,22 @@ export class AudioEngine {
         const octave = Math.floor(keyNumber / NOTES_PER_OCTAVE);
         const positionInOctave = keyNumber % NOTES_PER_OCTAVE;
         
-        // For 46 EDO, each step is 1200/46 = 26.09 cents
-        // Find the closest 12-tone pitch class
-        let closestPitchClass = 0;
-        let microtonalOffset = 0;
-        
-        // Find which 12-tone note this 46-EDO step is closest to
-        for (let pc = 0; pc < 12; pc++) {
-            const targetPosition = Math.round((pc * 46) / 12);
-            if (positionInOctave === targetPosition) {
-                closestPitchClass = pc;
-                microtonalOffset = 0;
-                break;
-            } else if (positionInOctave < targetPosition) {
-                // Between previous and current pitch class
-                const prevPosition = pc > 0 ? Math.round(((pc - 1) * 46) / 12) : 0;
-                const distToPrev = positionInOctave - prevPosition;
-                const distBetween = targetPosition - prevPosition;
-                closestPitchClass = pc - 1;
-                microtonalOffset = distToPrev / distBetween;
-                break;
-            } else if (pc === 11) {
-                // Past the last pitch class
-                closestPitchClass = 11;
-                const lastPosition = Math.round((11 * 46) / 12);
-                microtonalOffset = (positionInOctave - lastPosition) / (46 - lastPosition);
-            }
-        }
-        
         // Clamp octave to valid range
         const clampedOctave = Math.max(0, Math.min(7, octave));
         
-        // Get base frequency for this pitch class
-        const baseFreq = BASE_POINT_FREQS[closestPitchClass];
+        // Use C (position 0) as our reference frequency
+        const referenceFreq = BASE_POINT_FREQS[0];
         
-        // For microtonal interpolation, use exponential interpolation
-        // Frequency ratios in equal temperament are exponential, not linear
-        let frequencyMultiplier = 1;
-        if (microtonalOffset > 0) {
-            // Each semitone is a ratio of 2^(1/12)
-            frequencyMultiplier = Math.pow(2, microtonalOffset / 12);
-        }
+        // Calculate the exact frequency for this 46-EDO step
+        // Each step in 46-EDO is exactly 2^(1/46) ratio
+        // positionInOctave gives us how many steps above C we are
+        const frequencyRatio = Math.pow(2, positionInOctave / NOTES_PER_OCTAVE);
         
-        // Apply frequency adjustment and microtonal multiplier
-        const finalFreq = (baseFreq + freqAdjust) * frequencyMultiplier;
+        // Apply the ratio to get the frequency for this note
+        const baseFreq = referenceFreq * frequencyRatio;
+        
+        // Apply frequency adjustment
+        const finalFreq = baseFreq + freqAdjust;
         const organyaFreq = finalFreq / PERIOD_SIZES[clampedOctave];
         
         // Convert to playback rate (256 samples per period)
