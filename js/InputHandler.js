@@ -216,12 +216,20 @@ export class InputHandler {
             this.pianoRoll.emit('selectionChanged');
             this.pianoRoll.dirty = true;
         } else {
+            // If clicking on an unselected note without shift, select only this note
+            if (!isNoteSelected) {
+                this.pianoRoll.noteManager.selectedNotes.clear();
+                this.pianoRoll.noteManager.selectedNotes.add(note);
+                this.pianoRoll.emit('selectionChanged');
+                this.pianoRoll.dirty = true;
+            }
+            
             // Check for resize
             const resizeZone = this.isInResizeZone(note, x);
             if (resizeZone.right || resizeZone.left) {
-                this.startResize(note, resizeZone.right ? 'right' : 'left', isNoteSelected);
+                this.startResize(note, resizeZone.right ? 'right' : 'left', true);
             } else {
-                this.startDrag(note, x, y, isNoteSelected);
+                this.startDrag(note, x, y, true);
             }
         }
     }
