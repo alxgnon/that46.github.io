@@ -345,7 +345,12 @@ function setupSongMenuItems() {
             e.preventDefault();
             const jsonPath = e.target.getAttribute('data-json');
             if (jsonPath) {
-                await loadJsonFromPath(jsonPath);
+                // Check if it's a directory
+                if (jsonPath.endsWith('/')) {
+                    await showSongDirectory(jsonPath, false, 'json');
+                } else {
+                    await loadJsonFromPath(jsonPath);
+                }
                 menuManager.closeAll();
             }
         });
@@ -873,7 +878,7 @@ async function loadJsonFromPath(path) {
 /**
  * Show song directory
  */
-async function showSongDirectory(basePath, isMidi = false) {
+async function showSongDirectory(basePath, isMidi = false, fileType = 'org') {
     try {
         // Add cache-busting query parameter
         const cacheBuster = `?t=${Date.now()}`;
@@ -903,6 +908,9 @@ async function showSongDirectory(basePath, isMidi = false) {
                         .replace(/_/g, ' ')
                         .replace(/\b\w/g, l => l.toUpperCase());
                 }
+            } else if (fileType === 'json') {
+                // Remove .o46.json extension
+                displayName = song.replace('.o46.json', '');
             } else {
                 displayName = song.replace('.org', '');
             }
@@ -911,6 +919,8 @@ async function showSongDirectory(basePath, isMidi = false) {
             li.onclick = () => {
                 if (isMidi) {
                     loadMidiFromPath(basePath + song);
+                } else if (fileType === 'json') {
+                    loadJsonFromPath(basePath + song);
                 } else {
                     loadOrgFromPath(basePath + song);
                 }
@@ -924,6 +934,8 @@ async function showSongDirectory(basePath, isMidi = false) {
         if (modalTitle) {
             if (isMidi) {
                 modalTitle.textContent = 'Classical Music';
+            } else if (fileType === 'json') {
+                modalTitle.textContent = 'Cave Story (46 EDO Tuned)';
             } else if (basePath.includes('keroblaster')) {
                 modalTitle.textContent = 'Kero Blaster Songs';
             } else if (basePath.includes('allbeta')) {
