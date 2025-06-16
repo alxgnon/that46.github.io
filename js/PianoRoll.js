@@ -195,7 +195,6 @@ export class PianoRoll {
             
             // Update playback engine with current notes and settings
             this.playbackEngine.loadNotes(this.noteManager.notes, this.orgMsPerTick);
-            this.playbackEngine.setGridWidth(this.gridWidth);
             this.playbackEngine.setTempo(this.currentBPM);
             this.playbackEngine.setLoop(this.loopEnabled, this.loopStart, this.loopEnd);
             this.playbackEngine.play(this.currentMeasure);
@@ -377,8 +376,6 @@ export class PianoRoll {
             // Recalculate total width
             this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
             
-            // Update playback engine with new grid width
-            this.playbackEngine.setGridWidth(this.gridWidth);
             
             // Store org-specific timing info
             this.orgMsPerTick = converted.msPerTick;
@@ -459,8 +456,6 @@ export class PianoRoll {
             // Recalculate total width
             this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
             
-            // Update playback engine with new grid width
-            this.playbackEngine.setGridWidth(this.gridWidth);
             
             // Add converted notes
             converted.notes.forEach(noteData => {
@@ -617,8 +612,6 @@ export class PianoRoll {
     }
     
     exportToJSON() {
-        const beatWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
-        const measureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
         
         const songData = {
             fileType: 'o46-song',
@@ -626,6 +619,7 @@ export class PianoRoll {
             tempo: this.currentBPM,
             timeSignature: `${BEATS_PER_MEASURE}/4`,
             orgMsPerTick: this.orgMsPerTick || null, // Preserve ORG timing info
+            snapMode: this.snapMode, // Save the snap mode
             loop: {
                 enabled: this.loopEnabled,
                 startMeasure: this.loopStart,
@@ -633,12 +627,14 @@ export class PianoRoll {
             },
             notes: this.noteManager.notes.map(note => {
                 // Convert x position to measure and beat
-                const totalBeats = (note.x - PIANO_KEY_WIDTH) / beatWidth;
+                // Always use base grid width for consistent save format
+                const baseBeatWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
+                const totalBeats = (note.x - PIANO_KEY_WIDTH) / baseBeatWidth;
                 const measure = Math.floor(totalBeats / (BEATS_PER_MEASURE * GRID_SUBDIVISIONS));
                 const beatInMeasure = totalBeats % (BEATS_PER_MEASURE * GRID_SUBDIVISIONS);
                 
                 // Convert width to duration in beats
-                const duration = note.width / beatWidth;
+                const duration = note.width / baseBeatWidth;
                 
                 // Process volume automation - remove absolutePosition, keep only tick
                 let volumeAutomation = null;
@@ -716,6 +712,37 @@ export class PianoRoll {
                 this.orgMsPerTick = songData.orgMsPerTick;
             }
             
+            // Restore snap mode if available, otherwise default to normal mode
+            // This ensures we interpret the saved data correctly
+            if (songData.snapMode) {
+                this.snapMode = songData.snapMode;
+            } else {
+                // Files without snapMode are assumed to be normal mode
+                this.snapMode = 'normal';
+            }
+            
+            // Update grid width based on snap mode
+            if (this.snapMode === 'high-res') {
+                this.gridWidth = this.baseGridWidth * 2;
+                // Update UI
+                const snapModeBtn = document.getElementById('snapModeBtn');
+                if (snapModeBtn) {
+                    snapModeBtn.classList.add('high-res');
+                    snapModeBtn.querySelector('span').textContent = 'Snap: Fine';
+                }
+            } else {
+                this.gridWidth = this.baseGridWidth;
+                // Update UI
+                const snapModeBtn = document.getElementById('snapModeBtn');
+                if (snapModeBtn) {
+                    snapModeBtn.classList.remove('high-res');
+                    snapModeBtn.querySelector('span').textContent = 'Snap: Normal';
+                }
+            }
+            
+            // Recalculate total width with the correct grid width
+            this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
+            
             // Set loop settings
             if (songData.loop) {
                 // Handle both old and new format
@@ -733,8 +760,9 @@ export class PianoRoll {
             
             // Import notes
             if (songData.notes && Array.isArray(songData.notes)) {
-                const beatWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
-                const measureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
+                // Always use base values for loading to match the save format
+                const baseBeatWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
+                const baseMeasureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
                 
                 // Calculate pixels per tick based on ORG timing or default
                 let pixelsPerTick;
@@ -745,15 +773,15 @@ export class PianoRoll {
                     pixelsPerTick = GRID_WIDTH / ticksPerBeat;
                 } else {
                     // Default assumption
-                    pixelsPerTick = beatWidth / 48;
+                    pixelsPerTick = baseBeatWidth / 48;
                 }
                 
                 songData.notes.forEach(noteData => {
                     // Handle new format (measure/beat/duration)
                     if (noteData.measure !== undefined) {
-                        const x = PIANO_KEY_WIDTH + (noteData.measure * measureWidth) + (noteData.beat * beatWidth);
+                        const x = PIANO_KEY_WIDTH + (noteData.measure * baseMeasureWidth) + (noteData.beat * baseBeatWidth);
                         const y = (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - noteData.pitch) * NOTE_HEIGHT;
-                        const width = noteData.duration * beatWidth;
+                        const width = noteData.duration * baseBeatWidth;
                         
                         // Process volume automation
                         let volumeAutomation = null;
@@ -927,9 +955,6 @@ export class PianoRoll {
         
         // Recalculate total width
         this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
-        
-        // Update playback engine with new grid width
-        this.playbackEngine.setGridWidth(this.gridWidth);
         
         // Adjust scroll position to maintain view
         if (this.snapMode === 'high-res') {

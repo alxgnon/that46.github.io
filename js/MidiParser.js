@@ -394,6 +394,8 @@ export class MidiParser {
         const trackChannelInstruments = new Map();
         // Track MIDI program changes per channel - fresh map for each conversion
         const channelPrograms = new Map();
+        // Track instruments assigned to each track for better voice separation
+        const trackInstruments = new Map();
         let tempo = 120; // Default tempo
         let timeSignature = { numerator: 4, denominator: 4 };
         
@@ -528,9 +530,8 @@ export class MidiParser {
                         // For display purposes, we need to map to our 4/4 grid
                         // But preserve the actual timing relationships
                         // GRID_WIDTH represents 1 beat (quarter note), not a subdivision
-                        const baseGridWidth = GRID_WIDTH;
-                        const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
-                        const pixelsPerQuarterNote = effectiveGridWidth; // Use doubled width in fine mode
+                        // Always use base grid width for positioning to maintain consistent timing
+                        const pixelsPerQuarterNote = GRID_WIDTH;
                         const displayPixelsPerTick = pixelsPerQuarterNote / midiData.ticksPerQuarter;
                         
                         const rawX = PIANO_KEY_WIDTH + (normalizedStartTime * displayPixelsPerTick);
@@ -542,7 +543,7 @@ export class MidiParser {
                         
                         // Ensure minimum width based on resolution
                         const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
-                        const minWidth = effectiveGridWidth / subdivisions;
+                        const minWidth = GRID_WIDTH / subdivisions;
                         if (endX - x < minWidth) {
                             endX = x + minWidth;
                         }
@@ -560,51 +561,71 @@ export class MidiParser {
                             // Channel 10 (9 in 0-based) is drums
                             instrument = 'ORG_D00';
                         } else {
-                            // Assign or get instrument for this track+channel combination
-                            const trackChannelKey = `${noteStart.trackIndex}-${noteStart.channel}`;
-                            if (!trackChannelInstruments.has(trackChannelKey)) {
-                                // Check if channel has a program change
-                                const midiProgram = channelPrograms.get(noteStart.channel);
-                                let instrumentNum;
+                            // First check if this track already has an assigned instrument
+                            if (!trackInstruments.has(noteStart.trackIndex)) {
+                                // Assign a unique instrument to this track
+                                // Use different instrument families for different tracks
+                                const trackBasedInstruments = [
+                                    'ORG_M00', // Piano for track 0
+                                    'ORG_M40', // Violin for track 1  
+                                    'ORG_M42', // Cello for track 2
+                                    'ORG_M24', // Guitar for track 3
+                                    'ORG_M73', // Flute for track 4
+                                    'ORG_M56', // Trumpet for track 5
+                                    'ORG_M11', // Vibraphone for track 6
+                                    'ORG_M48', // Strings for track 7
+                                ];
                                 
+                                // Check if channel has a program change first
+                                const midiProgram = channelPrograms.get(noteStart.channel);
                                 if (midiProgram !== undefined) {
-                                    // Map MIDI program (0-127) to ORG instrument (0-99)
-                                    // Using modulo to fit into ORG's instrument range
-                                    instrumentNum = midiProgram % 100;
+                                    // Use MIDI program but ensure different tracks get different voices
+                                    const baseProgram = midiProgram % 100;
+                                    const trackOffset = (noteStart.trackIndex * 10) % 100;
+                                    const instrumentNum = (baseProgram + trackOffset) % 100;
                                     const instrumentName = `ORG_M${instrumentNum.toString().padStart(2, '0')}`;
-                                    trackChannelInstruments.set(trackChannelKey, instrumentName);
+                                    trackInstruments.set(noteStart.trackIndex, instrumentName);
                                     // Get orchestral pan position
                                     pan = this.getOrchestralPan(midiProgram);
                                     // Apply velocity scaling for better balance
                                     const velocityScale = this.getVelocityScale(midiProgram);
                                     velocity = Math.min(127, Math.round(velocity * velocityScale));
+                                } else if (defaultInstrument) {
+                                    // Use default instrument if provided
+                                    trackInstruments.set(noteStart.trackIndex, defaultInstrument);
+                                    pan = 0;
+                                } else if (noteStart.trackIndex < trackBasedInstruments.length) {
+                                    // Use predefined instrument for this track
+                                    trackInstruments.set(noteStart.trackIndex, trackBasedInstruments[noteStart.trackIndex]);
+                                    // Assign pan based on track index for stereo separation
+                                    pan = ((noteStart.trackIndex % 4) - 1.5) * 30; // Spread tracks across stereo field
                                 } else {
-                                    // No program change, use default instrument if provided
-                                    if (defaultInstrument) {
-                                        trackChannelInstruments.set(trackChannelKey, defaultInstrument);
-                                    } else {
-                                        // Fall back to random instrument if no default provided
-                                        instrumentNum = Math.floor(random() * 100);
-                                        const instrumentName = `ORG_M${instrumentNum.toString().padStart(2, '0')}`;
-                                        trackChannelInstruments.set(trackChannelKey, instrumentName);
-                                    }
-                                    pan = 0; // Center for unknown instruments
+                                    // Fall back to random instrument for tracks beyond our predefined list
+                                    const instrumentNum = Math.floor(random() * 100);
+                                    const instrumentName = `ORG_M${instrumentNum.toString().padStart(2, '0')}`;
+                                    trackInstruments.set(noteStart.trackIndex, instrumentName);
+                                    pan = 0;
                                 }
                             }
-                            instrument = trackChannelInstruments.get(trackChannelKey);
+                            
+                            instrument = trackInstruments.get(noteStart.trackIndex);
+                            
+                            // Still need to get pan and velocity info if we have MIDI program info
+                            const trackChannelKey = `${noteStart.trackIndex}-${noteStart.channel}`;
+                            if (!trackChannelInstruments.has(trackChannelKey)) {
+                                const midiProgram = channelPrograms.get(noteStart.channel);
+                                if (midiProgram !== undefined && pan === 0) {
+                                    pan = this.getOrchestralPan(midiProgram);
+                                    const velocityScale = this.getVelocityScale(midiProgram);
+                                    velocity = Math.min(127, Math.round(velocity * velocityScale));
+                                }
+                                trackChannelInstruments.set(trackChannelKey, instrument);
+                            }
                             
                             // Safety check - ensure instrument is never undefined
                             if (!instrument) {
-                                console.warn(`No instrument found for ${trackChannelKey}, using default`);
+                                console.warn(`No instrument found for track ${noteStart.trackIndex}, using default`);
                                 instrument = defaultInstrument || 'ORG_M00';
-                            }
-                            
-                            // Still need to get pan and velocity scaling for this instrument
-                            const midiProgram = channelPrograms.get(noteStart.channel);
-                            if (midiProgram !== undefined) {
-                                pan = this.getOrchestralPan(midiProgram);
-                                const velocityScale = this.getVelocityScale(midiProgram);
-                                velocity = Math.min(127, Math.round(velocity * velocityScale));
                             }
                         }
                         
@@ -655,9 +676,8 @@ export class MidiParser {
                 const normalizedEndTime = endTime - minTime;
                 
                 // Use the same calculation as regular notes
-                const baseGridWidth = GRID_WIDTH;
-                const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
-                const pixelsPerQuarterNote = effectiveGridWidth;
+                // Always use base grid width for positioning to maintain consistent timing
+                const pixelsPerQuarterNote = GRID_WIDTH;
                 const displayPixelsPerTick = pixelsPerQuarterNote / midiData.ticksPerQuarter;
                 
                 const rawX = PIANO_KEY_WIDTH + (normalizedStartTime * displayPixelsPerTick);
@@ -665,12 +685,34 @@ export class MidiParser {
                 
                 // Snap to grid with fine resolution support
                 const x = this.snapToGrid(rawX, useFineResolution);
-                const endX = this.snapToGrid(rawEndX, useFineResolution);
+                let endX = this.snapToGrid(rawEndX, useFineResolution);
                 const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
-                const minWidth = effectiveGridWidth / subdivisions;
-                const width = Math.max(minWidth, endX - x);
+                const minWidth = GRID_WIDTH / subdivisions;
+                if (endX - x < minWidth) {
+                    endX = x + minWidth;
+                }
+                const width = endX - x;
                 
                 const y = (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - key46) * NOTE_HEIGHT;
+                
+                // Use the same track-based instrument assignment logic
+                let instrument;
+                let pan = 0;
+                if (noteStart.channel === 9) {
+                    instrument = 'ORG_D00';
+                } else {
+                    // Get instrument from track mapping
+                    instrument = trackInstruments.get(noteStart.trackIndex);
+                    if (!instrument) {
+                        // This shouldn't happen, but provide fallback
+                        instrument = defaultInstrument || 'ORG_M00';
+                    }
+                    // Get pan from channel program if available
+                    const midiProgram = channelPrograms.get(noteStart.channel);
+                    if (midiProgram !== undefined) {
+                        pan = this.getOrchestralPan(midiProgram);
+                    }
+                }
                 
                 notes.push({
                     x,
@@ -679,9 +721,8 @@ export class MidiParser {
                     height: NOTE_HEIGHT,
                     key: key46,
                     velocity: noteStart.velocity,
-                    pan: 0,
-                    instrument: noteStart.channel === 9 ? 'ORG_D00' : 
-                               (defaultInstrument || 'ORG_M00'),
+                    pan,
+                    instrument,
                     pipi: 0
                 });
             });
@@ -707,13 +748,20 @@ export class MidiParser {
             });
             
             
-            // Show instrument assignments
-            trackChannelInstruments.forEach((instrument, key) => {
+            // Show track instrument assignments
+            console.log('Track instrument assignments:');
+            trackInstruments.forEach((instrument, trackIndex) => {
+                const trackNotes = notes.filter(n => {
+                    // Find notes from this track by matching instrument
+                    return n.instrument === instrument;
+                }).length;
+                console.log(`  Track ${trackIndex}: ${instrument} (${trackNotes} notes)`);
             });
             
             // Show program and pan assignments
             channelPrograms.forEach((program, channel) => {
                 const pan = this.getOrchestralPan(program);
+                console.log(`  Channel ${channel}: MIDI Program ${program} (${this.getMidiInstrumentName(program)}, pan: ${pan})`);
             });
         }
         
@@ -823,10 +871,9 @@ export class MidiParser {
      * @param {boolean} useFineResolution - Whether to use fine resolution snapping
      */
     static snapToGrid(x, useFineResolution = false) {
-        const baseGridWidth = GRID_WIDTH;
-        const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
+        // Always use base grid width for consistent positioning
         const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
-        const subdivisionWidth = effectiveGridWidth / subdivisions;
+        const subdivisionWidth = GRID_WIDTH / subdivisions;
         // Round to nearest grid position
         const gridUnits = Math.round((x - PIANO_KEY_WIDTH) / subdivisionWidth);
         return gridUnits * subdivisionWidth + PIANO_KEY_WIDTH;

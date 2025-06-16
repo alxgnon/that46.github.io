@@ -39,8 +39,8 @@ export class PlaybackEngine {
         this.notes = [];
         this.orgMsPerTick = null;
         
-        // Grid settings (can be updated for fine mode)
-        this.gridWidth = GRID_WIDTH;
+        // Base measure width for timing calculations (never changes)
+        this.baseMeasureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
 
         // Scheduling
         this.scheduledNotes = [];
@@ -130,15 +130,6 @@ export class PlaybackEngine {
         this.calculateSongLength();
     }
     
-    /**
-     * Set the grid width (for fine mode support)
-     * @param {number} gridWidth - The current grid width
-     */
-    setGridWidth(gridWidth) {
-        this.gridWidth = gridWidth;
-        // Recalculate song length with new grid width
-        this.calculateSongLength();
-    }
 
     /**
      * Calculate the actual length of the song based on notes
@@ -157,9 +148,8 @@ export class PlaybackEngine {
             }
         }
 
-        // Convert X position to measure number
-        const measureWidth = this.gridWidth * BEATS_PER_MEASURE;
-        this.calculatedSongLength = Math.max(10, Math.ceil((maxEndX - PIANO_KEY_WIDTH) / measureWidth) + 1);
+        // Convert X position to measure number using base measure width
+        this.calculatedSongLength = Math.max(10, Math.ceil((maxEndX - PIANO_KEY_WIDTH) / this.baseMeasureWidth) + 1);
     }
 
     /**
@@ -322,9 +312,8 @@ export class PlaybackEngine {
             // Don't stop during scheduling - let the song play out
             // The stop condition is now handled by checking if we have scheduled far enough ahead
 
-            // Get notes for this measure
-            const measureStartX = PIANO_KEY_WIDTH + displayMeasure * this.gridWidth * BEATS_PER_MEASURE;
-            const measureWidth = this.gridWidth * BEATS_PER_MEASURE;
+            // Get notes for this measure using base measure width for consistent timing
+            const measureStartX = PIANO_KEY_WIDTH + displayMeasure * this.baseMeasureWidth;
             const notesInMeasure = this.getNotesInMeasure(displayMeasure);
 
             for (const note of notesInMeasure) {
@@ -334,11 +323,11 @@ export class PlaybackEngine {
                 }
 
                 // Check if note actually starts within this measure's boundaries
-                if (note.x >= measureStartX && note.x < measureStartX + measureWidth) {
+                if (note.x >= measureStartX && note.x < measureStartX + this.baseMeasureWidth) {
                     const noteOffsetX = note.x - measureStartX;
-                    const noteOffsetTime = (noteOffsetX / measureWidth) * measureDuration;
+                    const noteOffsetTime = (noteOffsetX / this.baseMeasureWidth) * measureDuration;
                     const noteStartTime = scheduleTime + noteOffsetTime;
-                    const noteDuration = (note.width / measureWidth) * measureDuration;
+                    const noteDuration = (note.width / this.baseMeasureWidth) * measureDuration;
 
                     if (noteStartTime >= currentTime) {
                         this.scheduleNoteAtTime(note, noteStartTime, noteDuration);
@@ -421,8 +410,8 @@ export class PlaybackEngine {
      * Get notes in a specific measure
      */
     getNotesInMeasure(measure) {
-        const measureStartX = PIANO_KEY_WIDTH + measure * this.gridWidth * BEATS_PER_MEASURE;
-        const measureEndX = measureStartX + this.gridWidth * BEATS_PER_MEASURE;
+        const measureStartX = PIANO_KEY_WIDTH + measure * this.baseMeasureWidth;
+        const measureEndX = measureStartX + this.baseMeasureWidth;
 
         return this.notes.filter(note => {
             const noteEndX = note.x + note.width;
