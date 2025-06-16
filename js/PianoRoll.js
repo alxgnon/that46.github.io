@@ -195,6 +195,7 @@ export class PianoRoll {
             
             // Update playback engine with current notes and settings
             this.playbackEngine.loadNotes(this.noteManager.notes, this.orgMsPerTick);
+            this.playbackEngine.setGridWidth(this.gridWidth);
             this.playbackEngine.setTempo(this.currentBPM);
             this.playbackEngine.setLoop(this.loopEnabled, this.loopStart, this.loopEnd);
             this.playbackEngine.play(this.currentMeasure);
@@ -203,7 +204,7 @@ export class PianoRoll {
     
     playFromCurrentPosition() {
         // Calculate the measure visible at the beginning (left edge) of the screen
-        const measureWidth = GRID_WIDTH * BEATS_PER_MEASURE;
+        const measureWidth = this.gridWidth * BEATS_PER_MEASURE;
         const currentViewMeasure = Math.floor((this.scrollX) / measureWidth);
         const measureToPlay = Math.max(0, currentViewMeasure);
         
@@ -376,6 +377,9 @@ export class PianoRoll {
             // Recalculate total width
             this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
             
+            // Update playback engine with new grid width
+            this.playbackEngine.setGridWidth(this.gridWidth);
+            
             // Store org-specific timing info
             this.orgMsPerTick = converted.msPerTick;
             
@@ -415,7 +419,7 @@ export class PianoRoll {
         }
     }
     
-    async loadMidiFile(arrayBuffer) {
+    async loadMidiFile(arrayBuffer, useFineResolution = false) {
         try {
             // Stop playback if playing
             if (this.isPlaying) {
@@ -423,13 +427,40 @@ export class PianoRoll {
             }
             
             const midiData = MidiParser.parse(arrayBuffer);
-            const converted = MidiParser.convertToNotes(midiData, arrayBuffer, -1, null);
+            const converted = MidiParser.convertToNotes(midiData, arrayBuffer, -1, null, useFineResolution);
             
             // Clear existing notes
             this.noteManager.clearAll();
             
             // Clear instrument colors to ensure consistent assignment
             this.instrumentColors.clear();
+            
+            // Set snap mode based on fine resolution option
+            if (useFineResolution) {
+                this.snapMode = 'high-res';
+                this.gridWidth = this.baseGridWidth * 2;
+                // Update UI
+                const snapModeBtn = document.getElementById('snapModeBtn');
+                if (snapModeBtn) {
+                    snapModeBtn.classList.add('high-res');
+                    snapModeBtn.querySelector('span').textContent = 'Snap: Fine';
+                }
+            } else {
+                this.snapMode = 'normal';
+                this.gridWidth = this.baseGridWidth;
+                // Update UI
+                const snapModeBtn = document.getElementById('snapModeBtn');
+                if (snapModeBtn) {
+                    snapModeBtn.classList.remove('high-res');
+                    snapModeBtn.querySelector('span').textContent = 'Snap: Normal';
+                }
+            }
+            
+            // Recalculate total width
+            this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
+            
+            // Update playback engine with new grid width
+            this.playbackEngine.setGridWidth(this.gridWidth);
             
             // Add converted notes
             converted.notes.forEach(noteData => {
@@ -896,6 +927,9 @@ export class PianoRoll {
         
         // Recalculate total width
         this.totalWidth = this.pianoKeyWidth + (this.totalMeasures * this.beatsPerMeasure * this.gridWidth);
+        
+        // Update playback engine with new grid width
+        this.playbackEngine.setGridWidth(this.gridWidth);
         
         // Adjust scroll position to maintain view
         if (this.snapMode === 'high-res') {

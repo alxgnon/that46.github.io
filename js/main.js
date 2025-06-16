@@ -174,6 +174,7 @@ function setupModals() {
     modalManager.register('saveAsModal');
     modalManager.register('trackInfoModal');
     modalManager.register('tuningHelpModal');
+    modalManager.register('midiImportModal');
 }
 
 /**
@@ -235,6 +236,11 @@ function setupMenus() {
                 id: 'menu-delete',
                 handler: () => handleDelete()
                 // Remove shortcut to allow Delete key to work in input fields
+            },
+            {
+                id: 'menu-change-voice',
+                handler: () => handleChangeVoice(),
+                shortcut: 'Ctrl+Shift+V'
             },
             {
                 id: 'menu-select-all',
@@ -434,13 +440,51 @@ async function handleImportMidi() {
         if (file) {
             try {
                 const buffer = await file.arrayBuffer();
-                await pianoRoll.loadMidiFile(buffer);
-                // Convert to .o46.json extension for saving
-                currentFilename = file.name.replace(/\.(mid|midi)$/i, '.o46.json');
-                updatePageTitle();
-                modalManager.notify(`Loaded: ${file.name}`, 'info');
+                
+                // Show options modal
+                const modal = document.getElementById('midiImportModal');
+                const confirmBtn = modal.querySelector('.midi-import-confirm');
+                const cancelBtn = modal.querySelector('.midi-import-cancel');
+                const closeBtn = modal.querySelector('.modal-close');
+                const fineResCheckbox = document.getElementById('midiImportFineResolution');
+                
+                // Reset checkbox
+                fineResCheckbox.checked = false;
+                
+                const cleanup = () => {
+                    confirmBtn.removeEventListener('click', handleConfirm);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    closeBtn.removeEventListener('click', handleCancel);
+                };
+                
+                const handleConfirm = async () => {
+                    const useFineResolution = fineResCheckbox.checked;
+                    cleanup();
+                    modalManager.close('midiImportModal');
+                    
+                    try {
+                        await pianoRoll.loadMidiFile(buffer, useFineResolution);
+                        // Convert to .o46.json extension for saving
+                        currentFilename = file.name.replace(/\.(mid|midi)$/i, '.o46.json');
+                        updatePageTitle();
+                        modalManager.notify(`Loaded: ${file.name}${useFineResolution ? ' (Fine resolution)' : ''}`, 'info');
+                    } catch (error) {
+                        modalManager.notify(`Failed to load MIDI file: ${error.message}`, 'error');
+                    }
+                };
+                
+                const handleCancel = () => {
+                    cleanup();
+                    modalManager.close('midiImportModal');
+                };
+                
+                confirmBtn.addEventListener('click', handleConfirm);
+                cancelBtn.addEventListener('click', handleCancel);
+                closeBtn.addEventListener('click', handleCancel);
+                
+                modalManager.show('midiImportModal');
             } catch (error) {
-                modalManager.notify(`Failed to load MIDI file: ${error.message}`, 'error');
+                modalManager.notify(`Failed to read MIDI file: ${error.message}`, 'error');
             }
         }
     };
@@ -503,6 +547,34 @@ function handleDelete() {
     pianoRoll.noteManager.deleteSelectedNotes();
     pianoRoll.emit('notesChanged');
     pianoRoll.dirty = true;
+}
+
+function handleChangeVoice() {
+    const selectedNotes = Array.from(pianoRoll.noteManager.selectedNotes);
+    if (selectedNotes.length === 0) {
+        modalManager.notify('No notes selected. Select notes first to change their voice.', 'info');
+        return;
+    }
+    
+    // Get current instrument from the voice selector
+    const currentInstrument = pianoRoll.currentSample;
+    
+    // Change instrument for all selected notes
+    let count = 0;
+    for (const note of selectedNotes) {
+        if (note.instrument !== currentInstrument) {
+            note.instrument = currentInstrument;
+            count++;
+        }
+    }
+    
+    if (count > 0) {
+        pianoRoll.emit('notesChanged');
+        pianoRoll.dirty = true;
+        modalManager.notify(`Changed voice to ${currentInstrument} for ${count} note${count > 1 ? 's' : ''}`, 'info');
+    } else {
+        modalManager.notify('Selected notes already have this voice', 'info');
+    }
 }
 
 /**
@@ -607,6 +679,10 @@ function showShortcuts() {
         <div class="shortcut-item">
             <span class="shortcut-key">Delete</span>
             <span class="shortcut-desc">Delete selected notes</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl+Shift+V</span>
+            <span class="shortcut-desc">Change voice of selected notes</span>
         </div>
         <div class="shortcut-item">
             <span class="shortcut-key">P</span>

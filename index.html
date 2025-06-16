@@ -6,7 +6,7 @@
     <meta name="google" content="notranslate">
     <title>that46.org</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/styles.css?v=20250614224258">
+    <link rel="stylesheet" href="css/styles.css?v=20250616092810">
 </head>
 <body>
     <div id="container">
@@ -70,6 +70,8 @@
                     <div class="menu-option" id="menu-copy">Copy</div>
                     <div class="menu-option" id="menu-paste">Paste</div>
                     <div class="menu-option" id="menu-delete">Delete</div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-option" id="menu-change-voice">Change Voice</div>
                     <div class="menu-separator"></div>
                     <div class="menu-option" id="menu-select-all">Select All</div>
                 </div>
@@ -300,6 +302,31 @@
         </div>
     </div>
     
+    <!-- MIDI Import Options Modal -->
+    <div id="midiImportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">MIDI Import Options</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="midiImportFineResolution" style="margin-right: 10px;">
+                        <span>Import with fine resolution (64 divisions)</span>
+                    </label>
+                    <p style="margin: 10px 0 0 24px; color: #999; font-size: 13px;">
+                        Enable this for MIDI files with complex timing or fast passages that need precise note placement.
+                    </p>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="midi-import-cancel" style="padding: 8px 16px;">Cancel</button>
+                    <button class="midi-import-confirm" style="padding: 8px 16px; background: #4a9eff; color: white; border: none; cursor: pointer;">Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- About content (hidden, for SEO) -->
     <div id="aboutContent" style="display: none;">
         <div class="about-container">
@@ -326,6 +353,6 @@
     </div>
     
     <!-- Load JavaScript modules -->
-    <script type="module" src="js/main.js?v=20250614224258"></script>
+    <script type="module" src="js/main.js?v=20250616092810"></script>
 </body>
 </html>

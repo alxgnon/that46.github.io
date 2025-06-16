@@ -379,9 +379,10 @@ export class MidiParser {
      * @param {ArrayBuffer} originalBuffer - Original MIDI file buffer for checksum
      * @param {number} octaveShift - Number of octaves to transpose (negative = down, positive = up)
      * @param {string} defaultInstrument - Default instrument to use when no program change is specified
+     * @param {boolean} useFineResolution - Whether to use fine timing resolution
      * @returns {Object} Piano roll data
      */
-    static convertToNotes(midiData, originalBuffer, octaveShift = -1, defaultInstrument = null) {
+    static convertToNotes(midiData, originalBuffer, octaveShift = -1, defaultInstrument = null, useFineResolution = false) {
         const notes = [];
         const activeNotes = new Map(); // Track active notes by key
         
@@ -461,8 +462,7 @@ export class MidiParser {
             console.warn(`MIDI file has ${measuresNeeded} measures, which exceeds the ${maxMeasures} measure limit. Notes beyond measure ${maxMeasures} may not be visible.`);
         }
         
-        // Calculate pixels per tick
-        const pixelsPerTick = this.calculatePixelsPerTick(tempo, midiData.ticksPerQuarter);
+        // Note: pixels per tick is calculated differently for display vs internal timing
         
         // Log if the time range seems unusual
         if (timeRange === 0) {
@@ -528,18 +528,21 @@ export class MidiParser {
                         // For display purposes, we need to map to our 4/4 grid
                         // But preserve the actual timing relationships
                         // GRID_WIDTH represents 1 beat (quarter note), not a subdivision
-                        const pixelsPerQuarterNote = GRID_WIDTH; // GRID_WIDTH = 1 beat
+                        const baseGridWidth = GRID_WIDTH;
+                        const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
+                        const pixelsPerQuarterNote = effectiveGridWidth; // Use doubled width in fine mode
                         const displayPixelsPerTick = pixelsPerQuarterNote / midiData.ticksPerQuarter;
                         
                         const rawX = PIANO_KEY_WIDTH + (normalizedStartTime * displayPixelsPerTick);
                         const rawEndX = PIANO_KEY_WIDTH + (normalizedEndTime * displayPixelsPerTick);
                         
-                        // Snap to grid
-                        const x = this.snapToGrid(rawX);
-                        let endX = this.snapToGrid(rawEndX);
+                        // Snap to grid with fine resolution support
+                        const x = this.snapToGrid(rawX, useFineResolution);
+                        let endX = this.snapToGrid(rawEndX, useFineResolution);
                         
-                        // Ensure minimum width
-                        const minWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
+                        // Ensure minimum width based on resolution
+                        const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
+                        const minWidth = effectiveGridWidth / subdivisions;
                         if (endX - x < minWidth) {
                             endX = x + minWidth;
                         }
@@ -647,21 +650,25 @@ export class MidiParser {
                 const shiftedMidiNote = noteStart.midiNote + (octaveShift * 12);
                 const key46 = this.midiNoteTo46edo(shiftedMidiNote);
                 
-                // Calculate positions - don't normalize, preserve actual timing
-                const normalizedStartTime = noteStart.startTime;
-                const normalizedEndTime = endTime;
+                // Calculate positions - normalize times by subtracting minTime
+                const normalizedStartTime = noteStart.startTime - minTime;
+                const normalizedEndTime = endTime - minTime;
                 
                 // Use the same calculation as regular notes
-                const pixelsPerQuarterNote = GRID_WIDTH * 4; // 4 subdivisions per beat
+                const baseGridWidth = GRID_WIDTH;
+                const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
+                const pixelsPerQuarterNote = effectiveGridWidth;
                 const displayPixelsPerTick = pixelsPerQuarterNote / midiData.ticksPerQuarter;
                 
                 const rawX = PIANO_KEY_WIDTH + (normalizedStartTime * displayPixelsPerTick);
                 const rawEndX = PIANO_KEY_WIDTH + (normalizedEndTime * displayPixelsPerTick);
                 
-                // Snap to grid
-                const x = this.snapToGrid(rawX);
-                const endX = this.snapToGrid(rawEndX);
-                const width = Math.max(GRID_WIDTH / GRID_SUBDIVISIONS, endX - x);
+                // Snap to grid with fine resolution support
+                const x = this.snapToGrid(rawX, useFineResolution);
+                const endX = this.snapToGrid(rawEndX, useFineResolution);
+                const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
+                const minWidth = effectiveGridWidth / subdivisions;
+                const width = Math.max(minWidth, endX - x);
                 
                 const y = (NUM_OCTAVES * NOTES_PER_OCTAVE - 1 - key46) * NOTE_HEIGHT;
                 
@@ -812,9 +819,14 @@ export class MidiParser {
     
     /**
      * Snap position to grid
+     * @param {number} x - X position to snap
+     * @param {boolean} useFineResolution - Whether to use fine resolution snapping
      */
-    static snapToGrid(x) {
-        const subdivisionWidth = GRID_WIDTH / GRID_SUBDIVISIONS;
+    static snapToGrid(x, useFineResolution = false) {
+        const baseGridWidth = GRID_WIDTH;
+        const effectiveGridWidth = useFineResolution ? baseGridWidth * 2 : baseGridWidth;
+        const subdivisions = useFineResolution ? 64 : GRID_SUBDIVISIONS;
+        const subdivisionWidth = effectiveGridWidth / subdivisions;
         // Round to nearest grid position
         const gridUnits = Math.round((x - PIANO_KEY_WIDTH) / subdivisionWidth);
         return gridUnits * subdivisionWidth + PIANO_KEY_WIDTH;
