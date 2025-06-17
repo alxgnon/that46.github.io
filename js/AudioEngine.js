@@ -33,6 +33,15 @@ export class AudioEngine {
     }
 
     /**
+     * Ensure audio context is running (needed for browser autoplay policies)
+     */
+    async ensureAudioContextRunning() {
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
+    }
+
+    /**
      * Set master volume
      * @param {number} volume - Volume (0-100)
      */

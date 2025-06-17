@@ -177,8 +177,11 @@ export class PianoRoll {
     }
 
 
-    play(fromMeasure = null) {
+    async play(fromMeasure = null) {
         if (!this.isPlaying) {
+            // Ensure audio context is running (browser autoplay policy)
+            await this.audioEngine.ensureAudioContextRunning();
+            
             this.isPlaying = true;
             
             if (!this.isPaused || fromMeasure !== null) {
@@ -201,7 +204,7 @@ export class PianoRoll {
         }
     }
     
-    playFromCurrentPosition() {
+    async playFromCurrentPosition() {
         // Calculate the measure visible at the beginning (left edge) of the screen
         const measureWidth = this.gridWidth * BEATS_PER_MEASURE;
         const currentViewMeasure = Math.floor((this.scrollX) / measureWidth);
@@ -213,7 +216,7 @@ export class PianoRoll {
         }
         
         // Play from the calculated measure
-        this.play(measureToPlay);
+        await this.play(measureToPlay);
     }
 
     pause() {

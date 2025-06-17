@@ -999,6 +999,9 @@ function handleOpen() {
  */
 async function loadOrgFromPath(path) {
     try {
+        // Ensure audio context is running (browser autoplay policy)
+        await pianoRoll.audioEngine.ensureAudioContextRunning();
+        
         // Add cache-busting query parameter
         const cacheBuster = `?t=${Date.now()}`;
         const response = await fetch(path + cacheBuster, {
@@ -1024,6 +1027,9 @@ async function loadOrgFromPath(path) {
  */
 async function loadMidiFromPath(path) {
     try {
+        // Ensure audio context is running (browser autoplay policy)
+        await pianoRoll.audioEngine.ensureAudioContextRunning();
+        
         // Add cache-busting query parameter
         const cacheBuster = `?t=${Date.now()}`;
         const response = await fetch(path + cacheBuster, {
@@ -1049,6 +1055,9 @@ async function loadMidiFromPath(path) {
  */
 async function loadJsonFromPath(path) {
     try {
+        // Ensure audio context is running (browser autoplay policy)
+        await pianoRoll.audioEngine.ensureAudioContextRunning();
+        
         // Add cache-busting query parameter
         const cacheBuster = `?t=${Date.now()}`;
         const response = await fetch(path + cacheBuster, {
