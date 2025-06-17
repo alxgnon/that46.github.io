@@ -441,6 +441,26 @@ async function handleImportMidi() {
             try {
                 const buffer = await file.arrayBuffer();
                 
+                // Parse MIDI file to get track information
+                const { MidiParser } = await import('./MidiParser.js');
+                const midiData = MidiParser.parse(buffer);
+                
+                // Count notes per track
+                const trackInfo = new Map();
+                let trackCount = 0;
+                
+                // Analyze tracks to find which have notes
+                midiData.tracks.forEach((track, trackIndex) => {
+                    const noteEvents = track.events.filter(e => e.type === 'noteOn');
+                    if (noteEvents.length > 0) {
+                        trackInfo.set(trackIndex, {
+                            noteCount: noteEvents.length,
+                            channels: [...new Set(noteEvents.map(e => e.channel))]
+                        });
+                        trackCount++;
+                    }
+                });
+                
                 // Show options modal
                 const modal = document.getElementById('midiImportModal');
                 const confirmBtn = modal.querySelector('.midi-import-confirm');
@@ -451,6 +471,92 @@ async function handleImportMidi() {
                 // Reset checkbox
                 fineResCheckbox.checked = false;
                 
+                // Add track voice selection UI
+                const modalBody = modal.querySelector('.modal-body');
+                let trackSelectionDiv = modal.querySelector('.track-selection');
+                if (!trackSelectionDiv) {
+                    trackSelectionDiv = document.createElement('div');
+                    trackSelectionDiv.className = 'track-selection';
+                    trackSelectionDiv.style.cssText = 'margin-top: 20px; border-top: 1px solid #444; padding-top: 20px;';
+                    modalBody.insertBefore(trackSelectionDiv, modalBody.lastElementChild);
+                }
+                
+                // Build track selection UI
+                if (trackCount > 0) {
+                    trackSelectionDiv.innerHTML = '<h3 style="margin: 0 0 15px 0; font-size: 16px;">Track Voice Assignment</h3>';
+                    const trackList = document.createElement('div');
+                    trackList.style.cssText = 'display: flex; flex-direction: column; gap: 10px; max-height: 200px; overflow-y: auto;';
+                    
+                    const instrumentOptions = `
+                        <option value="default">Auto-assign</option>
+                        <optgroup label="Common Instruments">
+                            <option value="ORG_M00">00 - Sine Wave / Ocarina</option>
+                            <option value="ORG_M15">15 - Piano</option>
+                            <option value="ORG_M49">49 - Finger Bass (Versatile)</option>
+                            <option value="ORG_M29">29 - Nylon String Guitar</option>
+                            <option value="ORG_M43">43 - Violin</option>
+                            <option value="ORG_M42">42 - Viola</option>
+                            <option value="ORG_M45">45 - Cello / String Ensemble</option>
+                            <option value="ORG_M47">47 - Trumpet / Tuba</option>
+                            <option value="ORG_M58">58 - Trumpet / French Horn</option>
+                            <option value="ORG_M57">57 - Trombone / Brass Section</option>
+                            <option value="ORG_M30">30 - Clarinet</option>
+                            <option value="ORG_M86">86 - Saxophone</option>
+                        </optgroup>
+                        <optgroup label="Keyboards">
+                            <option value="ORG_M08">08 - Electric Piano</option>
+                            <option value="ORG_M09">09 - Electric Piano</option>
+                            <option value="ORG_M28">28 - Electric Piano / Harpsichord</option>
+                            <option value="ORG_M56">56 - Harpsichord</option>
+                            <option value="ORG_M68">68 - Organ</option>
+                            <option value="ORG_M04">04 - Honky-tonk</option>
+                        </optgroup>
+                        <optgroup label="Bass">
+                            <option value="ORG_M06">06 - Acoustic Bass / Choir</option>
+                            <option value="ORG_M07">07 - Fretless Bass</option>
+                            <option value="ORG_M26">26 - Slap Bass</option>
+                            <option value="ORG_M72">72 - Acoustic Bass</option>
+                            <option value="ORG_M91">91 - Acoustic Bass</option>
+                            <option value="ORG_M92">92 - Slap Bass</option>
+                            <option value="ORG_M67">67 - Sawtooth Bass</option>
+                        </optgroup>
+                        <optgroup label="Waveforms">
+                            <option value="ORG_M10">10 - Triangle Wave (NES-like)</option>
+                            <option value="ORG_M20">20 - Square Wave (50% duty)</option>
+                            <option value="ORG_M25">25 - Square Wave (25% duty)</option>
+                            <option value="ORG_M26">26 - Square Wave (12.5% duty)</option>
+                            <option value="ORG_M32">32 - Square Wave (50% duty)</option>
+                            <option value="ORG_M66">66 - Sawtooth Wave</option>
+                            <option value="ORG_M94">94 - Sawtooth</option>
+                            <option value="ORG_M95">95 - Sawtooth</option>
+                        </optgroup>
+                        <optgroup label="Special">
+                            <option value="ORG_M33">33 - Bell (Sharp)</option>
+                            <option value="ORG_M60">60 - Bell</option>
+                            <option value="ORG_M85">85 - Distortion Guitar</option>
+                            <option value="ORG_M34">34 - Electric Jazz Guitar</option>
+                            <option value="ORG_M50">50 - Versatile Lead</option>
+                            <option value="ORG_M99">99 - NES Static Percussion</option>
+                        </optgroup>
+                    `;
+                    
+                    trackInfo.forEach((info, trackIndex) => {
+                        const trackItem = document.createElement('div');
+                        trackItem.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+                        trackItem.innerHTML = `
+                            <label style="flex: 1; color: #ccc;">Track ${trackIndex + 1} (${info.noteCount} notes)</label>
+                            <select class="track-voice-select" data-track="${trackIndex}" style="padding: 4px 8px; background: #2a2a2a; color: #ccc; border: 1px solid #444;">
+                                ${instrumentOptions}
+                            </select>
+                        `;
+                        trackList.appendChild(trackItem);
+                    });
+                    
+                    trackSelectionDiv.appendChild(trackList);
+                } else {
+                    trackSelectionDiv.innerHTML = '';
+                }
+                
                 const cleanup = () => {
                     confirmBtn.removeEventListener('click', handleConfirm);
                     cancelBtn.removeEventListener('click', handleCancel);
@@ -459,11 +565,22 @@ async function handleImportMidi() {
                 
                 const handleConfirm = async () => {
                     const useFineResolution = fineResCheckbox.checked;
+                    
+                    // Collect track voice assignments
+                    const trackVoices = new Map();
+                    modal.querySelectorAll('.track-voice-select').forEach(select => {
+                        const trackIndex = parseInt(select.dataset.track);
+                        const voice = select.value;
+                        if (voice !== 'default') {
+                            trackVoices.set(trackIndex, voice);
+                        }
+                    });
+                    
                     cleanup();
                     modalManager.close('midiImportModal');
                     
                     try {
-                        await pianoRoll.loadMidiFile(buffer, useFineResolution);
+                        await pianoRoll.loadMidiFile(buffer, useFineResolution, trackVoices);
                         // Convert to .o46.json extension for saving
                         currentFilename = file.name.replace(/\.(mid|midi)$/i, '.o46.json');
                         updatePageTitle();

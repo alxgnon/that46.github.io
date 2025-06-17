@@ -416,7 +416,7 @@ export class PianoRoll {
         }
     }
     
-    async loadMidiFile(arrayBuffer, useFineResolution = false) {
+    async loadMidiFile(arrayBuffer, useFineResolution = false, trackVoices = null) {
         try {
             // Stop playback if playing
             if (this.isPlaying) {
@@ -424,7 +424,7 @@ export class PianoRoll {
             }
             
             const midiData = MidiParser.parse(arrayBuffer);
-            const converted = MidiParser.convertToNotes(midiData, arrayBuffer, -1, null, useFineResolution);
+            const converted = MidiParser.convertToNotes(midiData, arrayBuffer, -1, null, useFineResolution, trackVoices);
             
             // Clear existing notes
             this.noteManager.clearAll();

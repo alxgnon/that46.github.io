@@ -382,7 +382,7 @@ export class MidiParser {
      * @param {boolean} useFineResolution - Whether to use fine timing resolution
      * @returns {Object} Piano roll data
      */
-    static convertToNotes(midiData, originalBuffer, octaveShift = -1, defaultInstrument = null, useFineResolution = false) {
+    static convertToNotes(midiData, originalBuffer, octaveShift = -1, defaultInstrument = null, useFineResolution = false, trackVoices = null) {
         const notes = [];
         const activeNotes = new Map(); // Track active notes by key
         
@@ -396,6 +396,8 @@ export class MidiParser {
         const channelPrograms = new Map();
         // Track instruments assigned to each track for better voice separation
         const trackInstruments = new Map();
+        // Track pan values for each track
+        const trackPans = new Map();
         let tempo = 120; // Default tempo
         let timeSignature = { numerator: 4, denominator: 4 };
         
@@ -563,17 +565,25 @@ export class MidiParser {
                         } else {
                             // First check if this track already has an assigned instrument
                             if (!trackInstruments.has(noteStart.trackIndex)) {
+                                // Check if user specified a voice for this track
+                                if (trackVoices && trackVoices.has(noteStart.trackIndex)) {
+                                    const userVoice = trackVoices.get(noteStart.trackIndex);
+                                    trackInstruments.set(noteStart.trackIndex, userVoice);
+                                    // Set appropriate pan based on the ORG instrument
+                                    pan = this.getOrgInstrumentPan(userVoice);
+                                    trackPans.set(noteStart.trackIndex, pan);
+                                } else {
                                 // Assign a unique instrument to this track
                                 // Use different instrument families for different tracks
                                 const trackBasedInstruments = [
-                                    'ORG_M00', // Piano for track 0
-                                    'ORG_M40', // Violin for track 1  
-                                    'ORG_M42', // Cello for track 2
-                                    'ORG_M24', // Guitar for track 3
-                                    'ORG_M73', // Flute for track 4
-                                    'ORG_M56', // Trumpet for track 5
-                                    'ORG_M11', // Vibraphone for track 6
-                                    'ORG_M48', // Strings for track 7
+                                    'ORG_M15', // Piano for track 0
+                                    'ORG_M43', // Violin for track 1  
+                                    'ORG_M45', // Cello/Strings for track 2
+                                    'ORG_M29', // Nylon Guitar for track 3
+                                    'ORG_M30', // Clarinet for track 4
+                                    'ORG_M47', // Trumpet for track 5
+                                    'ORG_M49', // Finger Bass for track 6
+                                    'ORG_M68', // Organ for track 7
                                 ];
                                 
                                 // Check if channel has a program change first
@@ -587,6 +597,7 @@ export class MidiParser {
                                     trackInstruments.set(noteStart.trackIndex, instrumentName);
                                     // Get orchestral pan position
                                     pan = this.getOrchestralPan(midiProgram);
+                                    trackPans.set(noteStart.trackIndex, pan);
                                     // Apply velocity scaling for better balance
                                     const velocityScale = this.getVelocityScale(midiProgram);
                                     velocity = Math.min(127, Math.round(velocity * velocityScale));
@@ -594,33 +605,35 @@ export class MidiParser {
                                     // Use default instrument if provided
                                     trackInstruments.set(noteStart.trackIndex, defaultInstrument);
                                     pan = 0;
+                                    trackPans.set(noteStart.trackIndex, pan);
                                 } else if (noteStart.trackIndex < trackBasedInstruments.length) {
                                     // Use predefined instrument for this track
                                     trackInstruments.set(noteStart.trackIndex, trackBasedInstruments[noteStart.trackIndex]);
                                     // Assign pan based on track index for stereo separation
                                     pan = ((noteStart.trackIndex % 4) - 1.5) * 30; // Spread tracks across stereo field
+                                    trackPans.set(noteStart.trackIndex, pan);
                                 } else {
                                     // Fall back to random instrument for tracks beyond our predefined list
                                     const instrumentNum = Math.floor(random() * 100);
                                     const instrumentName = `ORG_M${instrumentNum.toString().padStart(2, '0')}`;
                                     trackInstruments.set(noteStart.trackIndex, instrumentName);
                                     pan = 0;
+                                    trackPans.set(noteStart.trackIndex, pan);
+                                }
+                                }
+                            } else {
+                                // Track already has instrument assigned, get its pan value
+                                pan = trackPans.get(noteStart.trackIndex) || 0;
+                                
+                                // Still apply velocity scaling if we have MIDI program info
+                                const midiProgram = channelPrograms.get(noteStart.channel);
+                                if (midiProgram !== undefined) {
+                                    const velocityScale = this.getVelocityScale(midiProgram);
+                                    velocity = Math.min(127, Math.round(velocity * velocityScale));
                                 }
                             }
                             
                             instrument = trackInstruments.get(noteStart.trackIndex);
-                            
-                            // Still need to get pan and velocity info if we have MIDI program info
-                            const trackChannelKey = `${noteStart.trackIndex}-${noteStart.channel}`;
-                            if (!trackChannelInstruments.has(trackChannelKey)) {
-                                const midiProgram = channelPrograms.get(noteStart.channel);
-                                if (midiProgram !== undefined && pan === 0) {
-                                    pan = this.getOrchestralPan(midiProgram);
-                                    const velocityScale = this.getVelocityScale(midiProgram);
-                                    velocity = Math.min(127, Math.round(velocity * velocityScale));
-                                }
-                                trackChannelInstruments.set(trackChannelKey, instrument);
-                            }
                             
                             // Safety check - ensure instrument is never undefined
                             if (!instrument) {
@@ -707,11 +720,8 @@ export class MidiParser {
                         // This shouldn't happen, but provide fallback
                         instrument = defaultInstrument || 'ORG_M00';
                     }
-                    // Get pan from channel program if available
-                    const midiProgram = channelPrograms.get(noteStart.channel);
-                    if (midiProgram !== undefined) {
-                        pan = this.getOrchestralPan(midiProgram);
-                    }
+                    // Get pan from track mapping
+                    pan = trackPans.get(noteStart.trackIndex) || 0;
                 }
                 
                 notes.push({
@@ -1081,6 +1091,90 @@ export class MidiParser {
             return 0;
         }
         return pan;
+    }
+    
+    /**
+     * Get pan position for ORG instrument based on traditional orchestral seating
+     * @param {string} instrument - ORG instrument name (e.g., "ORG_M43")
+     * @returns {number} Pan value from -100 to 100
+     */
+    static getOrgInstrumentPan(instrument) {
+        // Based on the CSV documentation and traditional orchestral positioning
+        const panMap = {
+            // Strings - traditionally on the left
+            'ORG_M43': -40,  // Violin - far left (1st violins)
+            'ORG_M42': -25,  // Viola - center-left
+            'ORG_M45': 25,   // Cello/String Ensemble - center-right
+            
+            // Woodwinds - center to left
+            'ORG_M30': -30,  // Clarinet - left
+            'ORG_M86': -20,  // Saxophone - center-left
+            
+            // Brass - center to right  
+            'ORG_M47': 30,   // Trumpet/Tuba - right
+            'ORG_M58': 25,   // Trumpet/French Horn - center-right
+            'ORG_M57': 35,   // Trombone/Brass Section - right
+            
+            // Keyboards/Percussion - center
+            'ORG_M15': 0,    // Piano - center
+            'ORG_M08': -5,   // Electric Piano - slightly left
+            'ORG_M09': 5,    // Electric Piano - slightly right
+            'ORG_M28': -10,  // Electric Piano/Harpsichord - left
+            'ORG_M56': 10,   // Harpsichord - right
+            'ORG_M68': 0,    // Organ - center
+            'ORG_M04': 15,   // Honky-tonk - slightly right
+            
+            // Guitar - typically center-left
+            'ORG_M29': -15,  // Nylon String Guitar
+            'ORG_M34': -20,  // Electric Jazz Guitar
+            'ORG_M85': -25,  // Distortion Guitar
+            
+            // Bass - often right side
+            'ORG_M06': 40,   // Acoustic Bass/Choir
+            'ORG_M07': 35,   // Fretless Bass
+            'ORG_M26': 30,   // Slap Bass (square wave version)
+            'ORG_M49': 35,   // Finger Bass
+            'ORG_M67': 30,   // Sawtooth Bass
+            'ORG_M72': 40,   // Acoustic Bass
+            'ORG_M91': 40,   // Acoustic Bass
+            'ORG_M92': 35,   // Slap Bass
+            
+            // Bells/Percussion - varied
+            'ORG_M33': 45,   // Bell (Sharp) - far right
+            'ORG_M60': 40,   // Bell - right
+            
+            // Lead/Solo instruments - slight variations for stereo interest
+            'ORG_M00': 0,    // Sine Wave/Ocarina - center
+            'ORG_M50': 5,    // Versatile Lead - slightly right
+            
+            // Waveforms - center by default
+            'ORG_M10': 0,    // Triangle Wave
+            'ORG_M20': 0,    // Square Wave 50%
+            'ORG_M25': 0,    // Square Wave 25%
+            'ORG_M32': 0,    // Square Wave 50%
+            'ORG_M66': 0,    // Sawtooth Wave
+            'ORG_M94': 0,    // Sawtooth
+            'ORG_M95': 0,    // Sawtooth
+            
+            // Special
+            'ORG_M99': 50,   // NES Static Percussion - far right
+            
+            // Drums
+            'ORG_D00': 20,   // Drum - slightly right
+            'ORG_D01': 25,
+            'ORG_D02': 30,
+            'ORG_D03': 35,
+            'ORG_D04': 40,
+            'ORG_D05': 45,
+            'ORG_D06': 50,
+            'ORG_D07': 55,
+            'ORG_D08': 60,
+            'ORG_D09': 40,
+            'ORG_D10': 45,
+            'ORG_D11': 50
+        };
+        
+        return panMap[instrument] || 0; // Default to center if not found
     }
     
     /**
