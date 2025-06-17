@@ -176,6 +176,10 @@ export class PlaybackEngine {
         this.scheduledNotes = [];
         this.lastScheduledEndTime = 0;
         this.lastScheduledMeasure = this.currentMeasure;
+        
+        // Initialize playback start time here to ensure it's set even with empty measures
+        this.playbackStartTime = this.audioEngine.audioContext.currentTime;
+        this.playbackStartMeasure = this.currentMeasure;
 
         this.scheduleNotes();
         this.updateLoop();
@@ -286,10 +290,13 @@ export class PlaybackEngine {
         const scheduleUntilTime = currentTime + lookAheadTime;
 
 
-        // Initialize scheduling if needed
+        // Initialize scheduling if needed (only if not already initialized in play())
         if (this.lastScheduledEndTime === 0) {
-            this.playbackStartTime = currentTime;
-            this.playbackStartMeasure = this.currentMeasure;
+            // These should already be set in play(), but set them here as a fallback
+            if (!this.playbackStartTime) {
+                this.playbackStartTime = currentTime;
+                this.playbackStartMeasure = this.currentMeasure;
+            }
             this.lastScheduledEndTime = currentTime;
             this.lastScheduledMeasure = this.currentMeasure;
         }
