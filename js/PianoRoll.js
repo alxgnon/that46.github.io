@@ -201,6 +201,7 @@ export class PianoRoll {
             this.playbackEngine.setTempo(this.currentBPM);
             this.playbackEngine.setLoop(this.loopEnabled, this.loopStart, this.loopEnd);
             this.playbackEngine.play(this.currentMeasure);
+            this.emit('playbackStateChange', { isPlaying: this.isPlaying, isPaused: this.isPaused });
         }
     }
     
@@ -222,10 +223,11 @@ export class PianoRoll {
     pause() {
         if (this.isPlaying) {
             this.isPaused = true;
-            this.isPlaying = false;
+            // Keep isPlaying as true when paused so UI can show correct state
             
             this.playbackEngine.pause();
             this.stopAllPlayingNotes();
+            this.emit('playbackStateChange', { isPlaying: this.isPlaying, isPaused: this.isPaused });
         }
     }
 
@@ -240,6 +242,7 @@ export class PianoRoll {
         this.scrollX = 0;
         this.emit('scroll', { scrollX: this.scrollX, scrollY: this.scrollY });
         this.dirty = true;
+        this.emit('playbackStateChange', { isPlaying: this.isPlaying, isPaused: this.isPaused });
     }
 
     stopAllPlayingNotes() {
@@ -905,6 +908,7 @@ export class PianoRoll {
         this.isPaused = false;
         this.playingNotes.clear();
         this.dirty = true;
+        this.emit('playbackStateChange', { isPlaying: this.isPlaying, isPaused: this.isPaused });
     }
     
     emit(event, data) {

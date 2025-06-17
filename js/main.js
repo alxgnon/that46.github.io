@@ -29,6 +29,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const canvas = document.getElementById('pianoRoll');
     pianoRoll = new PianoRoll(canvas);
     
+    // Listen for playback state changes
+    pianoRoll.addEventListener('playbackStateChange', () => {
+        updatePlayButton();
+    });
+    
     // Initialize pan and velocity bars
     const panCanvas = document.getElementById('panCanvas');
     const velocityCanvas = document.getElementById('velocityCanvas');
