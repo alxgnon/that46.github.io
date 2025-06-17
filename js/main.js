@@ -1125,17 +1125,7 @@ async function showSongDirectory(basePath, isMidi = false, fileType = 'org') {
         // Update modal title based on directory
         const modalTitle = document.querySelector('#songModal h2');
         if (modalTitle) {
-            if (isMidi) {
-                modalTitle.textContent = 'Classical Music';
-            } else if (fileType === 'json') {
-                modalTitle.textContent = 'Cave Story (46 EDO Tuned)';
-            } else if (basePath.includes('keroblaster')) {
-                modalTitle.textContent = 'Kero Blaster Songs';
-            } else if (basePath.includes('allbeta')) {
-                modalTitle.textContent = 'Cave Story Beta Songs';
-            } else {
-                modalTitle.textContent = 'Cave Story Songs';
-            }
+                modalTitle.textContent = 'Songs';
         }
         
         // Show modal
